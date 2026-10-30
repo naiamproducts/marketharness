@@ -1,0 +1,597 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MarketHarness — a full marketing team in your terminal</title>
+<meta name="description" content="MarketHarness puts a full marketing team in your terminal: evidence-backed audience research, content drafts, and publishing that only happens with your approval.">
+<meta property="og:title" content="MarketHarness — a full marketing team in your terminal">
+<meta property="og:description" content="Evidence-backed audience research, content drafts, and confirm-bound publishing — a marketing team of five agents running in your terminal.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://naiamproducts.github.io/marketharness/">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230e1414'/%3E%3Cpath d='M6 24V9h4l6 8 6-8h4v15h-4v-8l-6 8-6-8v8z' fill='%232dd4bf'/%3E%3C/svg%3E">
+<style>
+  :root{
+    --bg:#0e1414;
+    --bg-2:#121a1a;
+    --panel:#0b0f0f;
+    --line:#1e2b2a;
+    --line-2:#2a3a38;
+    --text:#e6efec;
+    --muted:#9fb1ac;
+    --teal:#2dd4bf;
+    --emerald:#34d399;
+    --amber:#fbbf24;
+    --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,"Liberation Mono",monospace;
+    --sans:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    background:var(--bg);
+    color:var(--text);
+    font-family:var(--sans);
+    line-height:1.6;
+    -webkit-text-size-adjust:100%;
+  }
+  a{color:var(--teal);text-decoration:none}
+  a:hover{text-decoration:underline}
+  .wrap{max-width:1080px;margin:0 auto;padding:0 20px}
+  section{padding:44px 0;border-top:1px solid var(--line)}
+  h1,h2,h3{line-height:1.2;margin:0 0 14px}
+  h2{font-size:1.5rem;letter-spacing:-.01em}
+  h2 .hash{color:var(--teal);font-weight:400;margin-right:8px}
+  p{margin:0 0 14px;color:var(--muted)}
+  code{font-family:var(--mono);font-size:.92em;background:#16211f;border:1px solid var(--line);
+       border-radius:5px;padding:1px 6px;color:#b9f5e6}
+  .lede{font-size:1.05rem;max-width:70ch}
+
+  /* hero */
+  #hero{border-top:0;padding:70px 0 54px;
+    background:radial-gradient(1100px 420px at 70% -10%,rgba(45,212,191,.13),transparent 65%),var(--bg)}
+  .brand{display:flex;align-items:center;gap:14px;margin-bottom:18px}
+  .brand svg{width:44px;height:44px;flex:none}
+  h1{font-size:clamp(2.1rem,5vw,3.1rem);letter-spacing:-.03em}
+  h1 .accent{color:var(--teal)}
+  .tagline{font-size:clamp(1.02rem,2.2vw,1.22rem);max-width:74ch;color:#c8d6d2;margin-bottom:26px}
+  .cta{display:flex;flex-wrap:wrap;gap:12px}
+  .btn{display:inline-block;padding:11px 20px;border-radius:9px;font-weight:600;font-size:.97rem;
+    border:1px solid var(--line-2);color:var(--text);background:#152020}
+  .btn:hover{text-decoration:none;border-color:var(--teal)}
+  .btn.primary{background:var(--teal);border-color:var(--teal);color:#04211d}
+  .btn.primary:hover{background:var(--emerald);border-color:var(--emerald)}
+  .pills{display:flex;flex-wrap:wrap;gap:8px;margin-top:26px}
+  .pill{font-family:var(--mono);font-size:.78rem;color:var(--muted);border:1px solid var(--line);
+    background:var(--bg-2);border-radius:999px;padding:5px 12px}
+
+  /* two columns */
+  .cols{display:flex;flex-wrap:wrap;gap:20px}
+  .col{flex:1 1 320px;background:var(--bg-2);border:1px solid var(--line);border-radius:12px;padding:22px}
+  .col h3{font-size:1.02rem;margin-bottom:10px}
+  .col.problem h3{color:var(--amber)}
+  .col.solution h3{color:var(--emerald)}
+  .col ul{margin:0;padding-left:18px;color:var(--muted)}
+  .col li{margin-bottom:7px}
+  .col li:last-child{margin-bottom:0}
+
+  /* steps */
+  .steps{display:flex;flex-wrap:wrap;gap:18px;counter-reset:step}
+  .step{flex:1 1 230px;background:var(--bg-2);border:1px solid var(--line);border-radius:12px;padding:18px 18px 16px;
+    position:relative}
+  .step .n{display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:50%;
+    background:rgba(45,212,191,.14);color:var(--teal);font-family:var(--mono);font-size:.85rem;
+    border:1px solid rgba(45,212,191,.35);margin-bottom:10px}
+  .step h3{font-size:.98rem;margin-bottom:8px}
+  .step p{font-size:.92rem;margin:0}
+
+  /* team table */
+  .team{width:100%;border-collapse:collapse;font-size:.95rem}
+  .team th,.team td{text-align:left;padding:11px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+  .team th{color:var(--muted);font-weight:600;font-size:.82rem;text-transform:uppercase;letter-spacing:.06em}
+  .team td:first-child{white-space:nowrap}
+  .team .name{font-family:var(--mono);color:var(--teal)}
+  .mode{display:inline-block;font-family:var(--mono);font-size:.74rem;border:1px solid var(--line-2);
+    border-radius:999px;padding:2px 9px;color:var(--muted);margin-left:8px}
+  .mode.sub{color:var(--emerald);border-color:rgba(52,211,153,.4)}
+  .mode.default{color:var(--amber);border-color:rgba(251,191,36,.35)}
+  .table-scroll{overflow-x:auto}
+
+  /* terminal */
+  .term{background:var(--panel);border:1px solid var(--line-2);border-radius:11px;overflow:hidden;margin:16px 0 0}
+  .term-bar{display:flex;align-items:center;gap:8px;padding:9px 13px;background:#131c1c;
+    border-bottom:1px solid var(--line);font-family:var(--mono);font-size:.78rem;color:var(--muted)}
+  .dot{width:11px;height:11px;border-radius:50%;display:inline-block}
+  .dot.r{background:#ff5f56}.dot.y{background:#ffbd2e}.dot.g{background:#27c93f}
+  .term-title{margin-left:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .term-body{margin:0;padding:14px 16px;font-family:var(--mono);font-size:12.4px;line-height:1.5;
+    color:#dfe7e4;white-space:pre;overflow:auto}
+  .term-body.tall{max-height:430px}
+  .term-body.short{max-height:300px}
+  .term-cap{font-family:var(--mono);font-size:.82rem;color:var(--muted);margin:18px 0 0}
+  .term-cap b{color:var(--teal);font-weight:600}
+  .frame-grid{display:flex;flex-wrap:wrap;gap:22px}
+  .frame-grid .term{flex:1 1 480px;min-width:0;margin-top:6px}
+
+  /* skills */
+  .chips{display:flex;flex-wrap:wrap;gap:10px}
+  .chip{background:var(--bg-2);border:1px solid var(--line);border-radius:9px;padding:10px 14px;min-width:150px}
+  .chip .n{font-family:var(--mono);font-size:.88rem;color:var(--teal);display:block}
+  .chip .d{font-size:.84rem;color:var(--muted)}
+
+  /* blocks */
+  .block{background:var(--bg-2);border:1px solid var(--line);border-left:3px solid var(--teal);
+    border-radius:10px;padding:20px 22px}
+  .block.emerald{border-left-color:var(--emerald)}
+  .block h3{font-size:1.05rem}
+  .safety{display:flex;flex-wrap:wrap;gap:16px}
+  .safety .item{flex:1 1 300px;background:var(--bg-2);border:1px solid var(--line);border-radius:10px;padding:16px 18px}
+  .safety .item h3{font-size:.95rem;color:var(--emerald);margin-bottom:6px}
+  .safety .item p{font-size:.9rem;margin:0}
+
+  pre.code{background:#0b1211;border:1px solid var(--line-2);border-radius:10px;padding:16px 18px;
+    overflow-x:auto;font-family:var(--mono);font-size:13px;line-height:1.6;color:#cfe9e2;margin:14px 0 0}
+  pre.code .cm{color:#6f857f}
+  pre.code .pr{color:var(--teal)}
+
+  footer{border-top:1px solid var(--line);padding:34px 0 44px;color:var(--muted);font-size:.92rem}
+  footer .links{display:flex;flex-wrap:wrap;gap:18px;margin-bottom:14px}
+  footer .attr{max-width:80ch;color:#8b9c97;font-size:.87rem}
+  .fine{font-size:.85rem;color:#8b9c97}
+  @media (max-width:640px){
+    section{padding:34px 0}
+    .term-body{font-size:11.5px}
+    .team th,.team td{padding:9px 8px}
+  }
+</style>
+</head>
+<body>
+
+<section id="hero">
+  <div class="wrap">
+    <div class="brand">
+      <svg viewBox="0 0 32 32" aria-hidden="true">
+        <rect width="32" height="32" rx="7" fill="#16211f" stroke="#2dd4bf" stroke-opacity=".55"></rect>
+        <path d="M6 24V9h4l6 8 6-8h4v15h-4v-8l-6 8-6-8v8z" fill="#2dd4bf"></path>
+      </svg>
+      <h1>Market<span class="accent">Harness</span></h1>
+    </div>
+    <p class="tagline">MarketHarness puts a full marketing team in your terminal — evidence-backed
+      audience research, content drafts, and publishing that only happens with your approval.</p>
+    <div class="cta">
+      <a class="btn primary" href="https://github.com/naiamproducts/marketharness">GitHub repo</a>
+      <a class="btn" href="#quick-start">Quick start</a>
+    </div>
+    <div class="pills">
+      <span class="pill">OpenCode V1 distribution</span>
+      <span class="pill">5 agents</span>
+      <span class="pill">8 skills</span>
+      <span class="pill">6 slash commands</span>
+      <span class="pill">confirm-bound publishing</span>
+      <span class="pill">optional Qloo MCP</span>
+    </div>
+  </div>
+</section>
+
+<section id="problem">
+  <div class="wrap">
+    <h2><span class="hash">//</span>Problem → solution</h2>
+    <div class="cols">
+      <div class="col problem">
+        <h3>Fragmented context → generic, risky content</h3>
+        <ul>
+          <li>Research, drafts and publishing live in three different tools — nothing carries over.</li>
+          <li>Claims come from vibes, with no source and no separation of fact from guess.</li>
+          <li>Anyone (or any agent) can hit <code>post</code>; a typo becomes public in one keystroke.</li>
+        </ul>
+      </div>
+      <div class="col solution">
+        <h3>Structured workspace + evidence + confirm-bound publishing</h3>
+        <ul>
+          <li>One workspace per company/project: brand, policies, knowledge, deliverables as files.</li>
+          <li>Every research output is labeled <code>EVIDENCE</code> / <code>INTERPRETATION</code> / <code>HYPOTHESIS</code> with citations.</li>
+          <li>Publishing needs your explicit, payload-bound approval — and every action is logged.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="how">
+  <div class="wrap">
+    <h2><span class="hash">//</span>How it works</h2>
+    <div class="steps">
+      <div class="step"><span class="n">1</span>
+        <h3>Brief</h3>
+        <p>Drop an objective. <code>/marketharness-brief</code> turns it into goal, context, audience and success criteria.</p>
+      </div>
+      <div class="step"><span class="n">2</span>
+        <h3>Lead delegates</h3>
+        <p>The Marketing Lead routes the brief to <code>research</code>, <code>growth</code> and <code>community</code> — and to the <code>audience-researcher</code> subagent for Qloo-backed questions.</p>
+      </div>
+      <div class="step"><span class="n">3</span>
+        <h3>Research with citations</h3>
+        <p>Findings land as <code>EVIDENCE</code> (tool, query, status), <code>INTERPRETATION</code> and <code>HYPOTHESIS</code> — kept apart, never blended.</p>
+      </div>
+      <div class="step"><span class="n">4</span>
+        <h3>You review, then publish</h3>
+        <p>Deliverables are drafts. <code>/marketharness-publish</code> prepares an immutable payload; you confirm the exact text; the connector executes and appends to the action log. Replays are refused as duplicates.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="team">
+  <div class="wrap">
+    <h2><span class="hash">//</span>The team</h2>
+    <div class="table-scroll">
+    <table class="team">
+      <thead><tr><th>Agent</th><th>Role</th></tr></thead>
+      <tbody>
+        <tr><td><span class="name">marketing-lead</span><span class="mode default">primary · default</span></td>
+            <td>Receives briefs, delegates to research/growth/community, consolidates deliverables. Never does deep research or drafting itself.</td></tr>
+        <tr><td><span class="name">research</span><span class="mode">primary</span></td>
+            <td>Direct audience research: discovery, synthesis, evidence-backed findings. Invokes the audience-researcher for Qloo-backed queries. Never publishes.</td></tr>
+        <tr><td><span class="name">growth</span><span class="mode">primary</span></td>
+            <td>Positioning and experiments: messaging pillars, tests with pre-registered thresholds, verdicts on results. Drafts only, never publishes.</td></tr>
+        <tr><td><span class="name">community</span><span class="mode">primary</span></td>
+            <td>Posts, replies and comment triage. Drafts only — publishing always goes through the connector prepare + confirm flow.</td></tr>
+        <tr><td><span class="name">audience-researcher</span><span class="mode sub">subagent</span></td>
+            <td>Qloo-backed audience specialist, invocable by marketing-lead and research. Same evidence criteria as direct use; never publishes.</td></tr>
+      </tbody>
+    </table>
+    </div>
+    <p class="term-cap"><b>$ marketharness agent list | grep -E '^[A-Za-z0-9_-]+ \((primary|subagent)\)$'</b> — the same extraction the installer runs</p>
+    <div class="term">
+      <div class="term-bar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>
+        <span class="term-title">agent list — captured run</span></div>
+      <pre class="term-body short">build (primary)
+compaction (primary)
+explore (subagent)
+general (subagent)
+plan (primary)
+summary (primary)
+title (primary)
+audience-researcher (subagent)
+community (primary)
+growth (primary)
+marketing-lead (primary)
+research (primary)</pre>
+    </div>
+  </div>
+</section>
+
+<section id="showcase">
+  <div class="wrap">
+    <h2><span class="hash">//</span>Terminal showcase</h2>
+    <p class="lede">Real frames from a real run — a throwaway install opened on a scaffolded workspace
+      (<code>tmux</code>, 180×44). Nothing below is scripted or mocked.</p>
+    <div class="frame-grid">
+      <div>
+        <p class="term-cap"><b>$ marketharness</b> — first launch, marketing-lead as default agent</p>
+        <div class="term">
+          <div class="term-bar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>
+            <span class="term-title">marketharness — home</span></div>
+          <pre class="term-body tall">                                                 <span style="color:#2dd4bf">                                        </span><span style="color:#34d399">                                          </span>
+                                                 <span style="color:#2dd4bf">                       ██            ██ </span><span style="color:#34d399"> ██                                       </span>
+                                                 <span style="color:#2dd4bf">▄████████▄ ▄███▄ ▄███▄ ██  ██ ▄███▄ ████</span><span style="color:#34d399"> ████▄ ▄███▄ ▄███▄ ▄███▄ ▄███▄ ▄███▄ ▄███▄</span>
+                                                 <span style="color:#2dd4bf">██  ██  ██    ██ ██ ██ ██ ██  ██ ██  ██ </span><span style="color:#34d399"> ██ ██    ██ ██ ██ ██ ██ ██ ██ ██    ██   </span>
+                                                 <span style="color:#2dd4bf">██  ██  ██ █████ ██    ████   █████  ██ </span><span style="color:#34d399"> ██ ██ █████ ██    ██ ██ █████ █████ █████</span>
+                                                 <span style="color:#2dd4bf">██  ██  ██ ██ ██ ██    ██ ██  ██     ██ </span><span style="color:#34d399"> ██ ██ ██ ██ ██    ██ ██ ██       ██    ██</span>
+                                                 <span style="color:#2dd4bf">██  ██  ██ ▀███▀ ██    ██  ██ ▀███▀  ██ </span><span style="color:#34d399"> ██ ██ ▀███▀ ██    ██ ██ ▀███▀ ▀███▀ ▀███▀</span>
+
+                                                                             <span style="color:#2dd4bf">/update</span><span style="color:#7e9b95"> to install v1.19.5</span>
+
+                                                     <span style="color:#34d399">┃</span><span style="color:#ffffff;background:#172424">                                                                          </span>
+                                                     <span style="color:#34d399">┃</span><span style="color:#ffffff;background:#172424">  </span><span style="color:#7e9b95;background:#172424">Ask anything… "Fix broken tests"</span><span style="color:#ffffff;background:#172424">                                        </span>
+                                                     <span style="color:#34d399">┃</span><span style="color:#ffffff;background:#172424">                                                                          </span>
+                                                     <span style="color:#34d399">┃</span><span style="color:#ffffff;background:#172424">  </span><span style="color:#34d399;background:#172424">Marketing-Lead</span><span style="color:#ffffff;background:#172424"> </span><span style="color:#7e9b95;background:#172424">·</span><span style="color:#ffffff;background:#172424"> </span><span style="color:#e2f2ee;background:#172424">Big Pickle</span><span style="color:#ffffff;background:#172424"> </span><span style="color:#7e9b95;background:#172424">OpenCode</span><span style="color:#ffffff;background:#172424">                                    </span>
+                                                     <span style="color:#34d399">╹</span><span style="color:#172424">▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀</span>
+                                                                                                     <span style="color:#e2f2ee">tab </span><span style="color:#7e9b95">agents</span><span style="color:#ffffff">  </span><span style="color:#e2f2ee">ctrl+p </span><span style="color:#7e9b95">commands</span>
+
+
+
+                                                              <span style="color:#fbbf24">● Tip </span><span style="color:#7e9b95">Run </span><span style="color:#e2f2ee">/connect</span><span style="color:#7e9b95"> to add an AI provider and start coding</span>
+
+
+
+
+
+
+
+
+
+  <span style="color:#7e9b95">/tmp/landing-ws/companies/example_company/projects/example_project</span><span style="color:#ffffff">  </span><span style="color:#34d399">⊙ </span><span style="color:#e2f2ee">1 MCP</span><span style="color:#ffffff"> </span><span style="color:#7e9b95">/status</span><span style="color:#ffffff">                                                                                       </span><span style="color:#7e9b95">1.19.3</span></pre>
+        </div>
+      </div>
+      <div>
+        <p class="term-cap"><b>$ /marketharness-</b> — the six shipped commands in the slash menu</p>
+        <div class="term">
+          <div class="term-bar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>
+            <span class="term-title">marketharness — slash menu</span></div>
+          <pre class="term-body tall">                                                 <span style="color:#2dd4bf">                                        </span><span style="color:#34d399">                                          </span>
+                                                 <span style="color:#2dd4bf">                       ██            ██ </span><span style="color:#34d399"> ██                                       </span>
+                                                 <span style="color:#2dd4bf">▄████████▄ ▄███▄ ▄███▄ ██  ██ ▄███▄ ████</span><span style="color:#34d399"> ████▄ ▄███▄ ▄███▄ ▄███▄ ▄███▄ ▄███▄ ▄███▄</span>
+                                                 <span style="color:#2dd4bf">██  ██  ██    ██ ██ ██ ██ ██  ██ ██  ██ </span><span style="color:#34d399"> ██ ██    ██ ██ ██ ██ ██ ██ ██ ██    ██   </span>
+                                                 <span style="color:#2dd4bf">██  </span><span style="color:#23403c">┃</span><span style="color:#ffffff;background:#2dd4bf"> </span><span style="color:#0e1414;background:#2dd4bf">/marketharness-init         First-run onboarding: workspace -&gt; company </span><span style="color:#ffffff;background:#2dd4bf"> </span><span style="color:#23403c">┃</span><span style="color:#34d399">███</span>
+                                                 <span style="color:#2dd4bf">██  </span><span style="color:#23403c">┃</span><span style="color:#ffffff;background:#172424"> </span><span style="color:#e2f2ee;background:#172424">/marketharness-brief       </span><span style="color:#7e9b95;background:#172424"> Intake a raw brief with brief-intake, then </span><span style="color:#ffffff;background:#172424"> </span><span style="color:#23403c">┃</span><span style="color:#34d399"> ██</span>
+                                                 <span style="color:#2dd4bf">██  </span><span style="color:#23403c">┃</span><span style="color:#ffffff;background:#172424"> </span><span style="color:#e2f2ee;background:#172424">/marketharness-report      </span><span style="color:#7e9b95;background:#172424"> results-review consolidation: verdict per e</span><span style="color:#ffffff;background:#172424"> </span><span style="color:#23403c">┃</span><span style="color:#34d399">██▀</span>
+                                                     <span style="color:#23403c">┃</span><span style="color:#ffffff;background:#172424"> </span><span style="color:#e2f2ee;background:#172424">/marketharness-publish     </span><span style="color:#7e9b95;background:#172424"> Prepare -&gt; confirm -&gt; execute -&gt; log; the O</span><span style="color:#ffffff;background:#172424"> </span><span style="color:#23403c">┃</span>
+                                                     <span style="color:#23403c">┃</span><span style="color:#ffffff;background:#172424"> </span><span style="color:#e2f2ee;background:#172424">/marketharness-research    </span><span style="color:#7e9b95;background:#172424"> Audience research flow: evidence-labeled sy</span><span style="color:#ffffff;background:#172424"> </span><span style="color:#23403c">┃</span>
+                                                     <span style="color:#23403c">┃</span><span style="color:#ffffff;background:#172424"> </span><span style="color:#e2f2ee;background:#172424">/marketharness-experiment  </span><span style="color:#7e9b95;background:#172424"> Design an experiment with pre-registered su</span><span style="color:#ffffff;background:#172424"> </span><span style="color:#23403c">┃</span>
+                                                     <span style="color:#34d399">┃</span><span style="color:#ffffff;background:#172424">                                                                          </span>
+                                                     <span style="color:#34d399">┃</span><span style="color:#ffffff;background:#172424">  </span><span style="color:#e2f2ee;background:#172424">/marketharness-</span><span style="color:#ffffff;background:#172424">                                                         </span>
+                                                     <span style="color:#34d399">┃</span><span style="color:#ffffff;background:#172424">                                                                          </span>
+                                                     <span style="color:#34d399">┃</span><span style="color:#ffffff;background:#172424">  </span><span style="color:#34d399;background:#172424">Marketing-Lead</span><span style="color:#ffffff;background:#172424"> </span><span style="color:#7e9b95;background:#172424">·</span><span style="color:#ffffff;background:#172424"> </span><span style="color:#e2f2ee;background:#172424">Big Pickle</span><span style="color:#ffffff;background:#172424"> </span><span style="color:#7e9b95;background:#172424">OpenCode</span><span style="color:#ffffff;background:#172424">                                    </span>
+                                                     <span style="color:#34d399">╹</span><span style="color:#172424">▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀</span>
+                                                                                                     <span style="color:#e2f2ee">tab </span><span style="color:#7e9b95">agents</span><span style="color:#ffffff">  </span><span style="color:#e2f2ee">ctrl+p </span><span style="color:#7e9b95">commands</span>
+
+
+
+                                                              <span style="color:#fbbf24">● Tip </span><span style="color:#7e9b95">Run </span><span style="color:#e2f2ee">/connect</span><span style="color:#7e9b95"> to add an AI provider and start coding</span>
+
+
+
+
+
+
+
+
+
+  <span style="color:#7e9b95">/tmp/landing-ws/companies/example_company/projects/example_project</span><span style="color:#ffffff">  </span><span style="color:#34d399">⊙ </span><span style="color:#e2f2ee">1 MCP</span><span style="color:#ffffff"> </span><span style="color:#7e9b95">/status</span><span style="color:#ffffff">                                                                                       </span><span style="color:#7e9b95">1.19.3</span></pre>
+        </div>
+      </div>
+      <div>
+        <p class="term-cap"><b>$ /agents</b> — the picker lists the workstreams plus native agents</p>
+        <div class="term">
+          <div class="term-bar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>
+            <span class="term-title">marketharness — agent picker</span></div>
+          <pre class="term-body tall">                                                            <span style="background:#121b1b">                                                            </span>
+                                                            <span style="background:#121b1b">    </span><span style="color:#e2f2ee;background:#121b1b;font-weight:700">Select agent</span><span style="color:#ffffff;background:#121b1b">                                     </span><span style="color:#7e9b95;background:#121b1b">esc</span><span style="color:#ffffff;background:#121b1b">    </span>
+                                                            <span style="background:#121b1b">                                                            </span>
+                                                            <span style="background:#121b1b">    </span><span style="color:#7e9b95;background:#121b1b">Search</span><span style="color:#ffffff;background:#121b1b">                                                  </span>
+                                                 <span style="color:#13574f">▄████████▄</span><span style="color:#ffffff"> </span><span style="color:#ffffff;background:#121b1b">                                                            </span><span style="color:#15573f;background:#060808">▄███▄</span><span style="color:#ffffff;background:#060808"> </span><span style="color:#15573f;background:#060808">▄███▄</span>
+                                                 <span style="color:#13574f">██</span><span style="color:#ffffff">  </span><span style="color:#13574f">██</span><span style="color:#ffffff">  </span><span style="color:#13574f">██</span><span style="color:#ffffff"> </span><span style="color:#ffffff;background:#121b1b"> </span><span style="color:#ffffff;background:#2dd4bf"> </span><span style="color:#0e1414;background:#2dd4bf">●</span><span style="color:#ffffff;background:#2dd4bf"> </span><span style="color:#0e1414;background:#2dd4bf;font-weight:700">marketing-lead Marketing lead — primary, default age</span><span style="color:#ffffff;background:#2dd4bf">   </span><span style="color:#ffffff;background:#121b1b"> </span><span style="color:#15573f;background:#060808">██</span><span style="color:#ffffff;background:#060808">    </span><span style="color:#15573f;background:#060808">██</span>
+                                                 <span style="color:#13574f">██</span><span style="color:#ffffff">  </span><span style="color:#13574f">██</span><span style="color:#ffffff">  </span><span style="color:#13574f">██</span><span style="color:#ffffff"> </span><span style="color:#ffffff;background:#121b1b">    </span><span style="color:#e2f2ee;background:#121b1b">build</span><span style="color:#7e9b95;background:#121b1b"> native</span><span style="color:#ffffff;background:#121b1b">                                            </span><span style="color:#15573f;background:#060808">█████</span><span style="color:#ffffff;background:#060808"> </span><span style="color:#15573f;background:#060808">█████</span>
+                                                 <span style="color:#13574f">██</span><span style="color:#ffffff">  </span><span style="color:#13574f">██</span><span style="color:#ffffff">  </span><span style="color:#13574f">██</span><span style="color:#ffffff"> </span><span style="color:#ffffff;background:#121b1b">    </span><span style="color:#e2f2ee;background:#121b1b">community</span><span style="color:#7e9b95;background:#121b1b"> Community workstream — primary agent for p</span><span style="color:#ffffff;background:#121b1b">    </span><span style="color:#ffffff;background:#060808">   </span><span style="color:#15573f;background:#060808">██</span><span style="color:#ffffff;background:#060808">    </span><span style="color:#15573f;background:#060808">██</span>
+                                                 <span style="color:#13574f">██</span><span style="color:#ffffff">  </span><span style="color:#13574f">██</span><span style="color:#ffffff">  </span><span style="color:#13574f">██</span><span style="color:#ffffff"> </span><span style="color:#ffffff;background:#121b1b">    </span><span style="color:#e2f2ee;background:#121b1b">growth</span><span style="color:#7e9b95;background:#121b1b"> Growth workstream — primary agent for positio</span><span style="color:#ffffff;background:#121b1b">    </span><span style="color:#15573f;background:#060808">▀███▀</span><span style="color:#ffffff;background:#060808"> </span><span style="color:#15573f;background:#060808">▀███▀</span>
+                                                            <span style="background:#121b1b">    </span><span style="color:#e2f2ee;background:#121b1b">plan</span><span style="color:#7e9b95;background:#121b1b"> native</span><span style="color:#ffffff;background:#121b1b">                                             </span>
+                                                            <span style="background:#121b1b">    </span><span style="color:#e2f2ee;background:#121b1b">research</span><span style="color:#7e9b95;background:#121b1b"> Research workstream — primary agent for dir</span><span style="color:#ffffff;background:#121b1b">    </span>
+                                                            <span style="background:#121b1b">                                                            </span>
+                                                     <span style="color:#15573f">┃</span><span style="color:#ffffff;background:#090f0f">      </span><span style="color:#ffffff;background:#121b1b">                                                            </span><span style="color:#ffffff;background:#090f0f">        </span>
+                                                     <span style="color:#15573f">┃</span><span style="color:#ffffff;background:#090f0f">  </span><span style="color:#34403d;background:#090f0f">Ask</span><span style="color:#ffffff;background:#090f0f"> </span><span style="color:#34403d;background:#090f0f">anything…</span><span style="color:#ffffff;background:#090f0f"> </span><span style="color:#34403d;background:#090f0f">"Fix</span><span style="color:#ffffff;background:#090f0f"> </span><span style="color:#34403d;background:#090f0f">broken</span><span style="color:#ffffff;background:#090f0f"> </span><span style="color:#34403d;background:#090f0f">tests"</span><span style="color:#ffffff;background:#090f0f">                                        </span>
+                                                     <span style="color:#15573f">┃</span><span style="color:#ffffff;background:#090f0f">                                                                          </span>
+                                                     <span style="color:#15573f">┃</span><span style="color:#ffffff;background:#090f0f">  </span><span style="color:#15573f;background:#090f0f">Marketing-Lead</span><span style="color:#ffffff;background:#090f0f"> </span><span style="color:#34403d;background:#090f0f">·</span><span style="color:#ffffff;background:#090f0f"> </span><span style="color:#5d6462;background:#090f0f">Big</span><span style="color:#ffffff;background:#090f0f"> </span><span style="color:#5d6462;background:#090f0f">Pickle</span><span style="color:#ffffff;background:#090f0f"> </span><span style="color:#34403d;background:#090f0f">OpenCode</span><span style="color:#ffffff;background:#090f0f">                                    </span>
+                                                     <span style="color:#15573f">╹</span><span style="color:#090f0f">▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀</span>
+                                                                                                     <span style="color:#5d6462">tab</span><span style="color:#ffffff"> </span><span style="color:#34403d">agents</span><span style="color:#ffffff">  </span><span style="color:#5d6462">ctrl+p</span><span style="color:#ffffff"> </span><span style="color:#34403d">commands</span>
+
+
+
+                                                              <span style="color:#674f0f">●</span><span style="color:#ffffff"> </span><span style="color:#674f0f">Tip</span><span style="color:#ffffff"> </span><span style="color:#34403d">Run</span><span style="color:#ffffff"> </span><span style="color:#5d6462">/connect</span><span style="color:#ffffff"> </span><span style="color:#34403d">to</span><span style="color:#ffffff"> </span><span style="color:#34403d">add</span><span style="color:#ffffff"> </span><span style="color:#34403d">an</span><span style="color:#ffffff"> </span><span style="color:#34403d">AI</span><span style="color:#ffffff"> </span><span style="color:#34403d">provider</span><span style="color:#ffffff"> </span><span style="color:#34403d">and</span><span style="color:#ffffff"> </span><span style="color:#34403d">start</span><span style="color:#ffffff"> </span><span style="color:#34403d">coding</span>
+
+
+
+
+
+
+
+
+
+  <span style="color:#34403d">/tmp/landing-ws/companies/example_company/projects/example_project</span><span style="color:#ffffff">  </span><span style="color:#15573f">⊙</span><span style="color:#ffffff"> </span><span style="color:#5d6462">1</span><span style="color:#ffffff"> </span><span style="color:#5d6462">MCP</span><span style="color:#ffffff"> </span><span style="color:#34403d">/status</span><span style="color:#ffffff">                                                                                       </span><span style="color:#34403d">1.19.3</span></pre>
+        </div>
+      </div>
+    </div>
+    <p class="term-cap"><b>$ marketharness --version</b> — a clean throwaway install: own runtime, own config home</p>
+    <div class="term">
+      <div class="term-bar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>
+        <span class="term-title">marketharness — version</span></div>
+      <pre class="term-body"><span style="color:#8787ff">marketharness</span> 0.1.0
+<span style="color:#8a8a8a">profile:</span>  marketing-team distribution of OpenCode V1 (marketing-lead + research/growth/community + audience-researcher)
+<span style="color:#8a8a8a">pinned:</span>  opencode-ai@1.19.3 (installed runtime: 1.19.3)
+<span style="color:#8a8a8a">root:</span>    /tmp/mhroot
+<span style="color:#8a8a8a">home:</span>    /tmp/mhhome/.config/marketharness
+<span style="color:#8a8a8a">config:</span>  /tmp/mhhome/.config/marketharness/opencode/opencode.json
+<span style="color:#8a8a8a">skills:</span>  /tmp/mhroot/skills
+<span style="color:#8a8a8a">qloo:</span>    not installed (optional — mcp.qloo omitted from the render)</pre>
+    </div>
+  </div>
+</section>
+
+<section id="skills">
+  <div class="wrap">
+    <h2><span class="hash">//</span>8 skills</h2>
+    <p class="lede">Each skill is one <code>SKILL.md</code> dropped in <code>skills/</code> — discovered with zero code changes.</p>
+    <div class="chips">
+      <div class="chip"><span class="n">brief-intake</span><span class="d">intake</span></div>
+      <div class="chip"><span class="n">audience-research</span><span class="d">research</span></div>
+      <div class="chip"><span class="n">positioning</span><span class="d">positioning</span></div>
+      <div class="chip"><span class="n">experiment-design</span><span class="d">experiments</span></div>
+      <div class="chip"><span class="n">content-adaptation</span><span class="d">adaptation</span></div>
+      <div class="chip"><span class="n">community-triage</span><span class="d">triage</span></div>
+      <div class="chip"><span class="n">response-drafting</span><span class="d">drafting</span></div>
+      <div class="chip"><span class="n">results-review</span><span class="d">verdicts</span></div>
+    </div>
+  </div>
+</section>
+
+<section id="qloo">
+  <div class="wrap">
+    <div class="block">
+      <h3>Qloo — audience evidence, not API trivia</h3>
+      <p>The <code>audience-researcher</code> subagent talks to Qloo's cultural data through the official
+        MCP harness (<code>{"command":"qloo","args":["mcp"]}</code>). Results arrive as
+        <code>EVIDENCE</code> with a provenance block — tool, query, status, result count, source and
+        limits — and stay separate from our own <code>INTERPRETATION</code>. No credential is ever
+        written to a config file; without the CLI or a key, the agents state "no Qloo research performed".</p>
+      <p class="fine"><b>Safe use:</b> aggregate affinities only, with source and limits shown — no
+        inference about an individual, no causal claims, no personal data sent to Qloo, and a human
+        confirms material entity/tag choices. See the
+        <a href="https://github.com/qloo/qloo-hackathon-kit">official Qloo Hackathon Kit</a>.</p>
+    </div>
+  </div>
+</section>
+
+<section id="safety">
+  <div class="wrap">
+    <h2><span class="hash">//</span>Safety</h2>
+    <div class="safety">
+      <div class="item"><h3>Confirm-bound publishing</h3><p><code>execute</code> accepts only the token minted for the exact payload you approved — account, project, full text, attachments, target.</p></div>
+      <div class="item"><h3>Payload-bound tokens</h3><p>Edit one character and the approval is stale (<code>confirm_stale</code>): you re-approve the new payload, never the old one.</p></div>
+      <div class="item"><h3>Dedup action log</h3><p>Every execution appends to an append-only log; re-running the same <code>action_id</code> is refused with the prior <code>external_id</code> — no blind retries.</p></div>
+      <div class="item"><h3>Permissions are config, not prompts</h3><p><code>delete: deny</code>, <code>rm -rf *</code>, <code>sudo *</code>, <code>git push *</code> and the publish <code>ask</code> rule live in the shared profile config — agent prompts only restate them.</p></div>
+      <div class="item"><h3>Fully isolated install</h3><p>Own pinned runtime, own XDG dirs, own rendered config: marketharness never reads or writes your existing OpenCode setup, credentials or sessions.</p></div>
+      <div class="item"><h3>Real run below</h3><p>Mock connector: prepare → wrong token → execute → identical call again → status. Offline, no network, straight from <code>connectors/mock-social/</code>.</p></div>
+    </div>
+    <p class="term-cap"><b>$ ./mock-social.py … prepare / execute / status</b> — captured sequence</p>
+    <div class="term">
+      <div class="term-bar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>
+        <span class="term-title">mock-social connector — confirm + dedup</span></div>
+      <pre class="term-body tall">$ ./mock-social.py --workspace /tmp/landing-ws prepare post --account example-linkedin --project example_project --text "Hello from marketharness - first mock post."
+{
+  "ok": true,
+  "action_id": "act_1b46504fac5c818c",
+  "payload": {
+    "action": "post",
+    "account": {
+      "id": "example-linkedin",
+      "platform": "linkedin",
+      "handle": "@your-company"
+    },
+    "project": "example_project",
+    "text": "Hello from marketharness - first mock post."
+  },
+  "payload_hash": "8be987a44b404d6459ccf13476c5fec8d5d6330616c6249226aed95f6e750706",
+  "confirm_token": "tok_82023ac87d4cdc0d79ec7b951cf111b9",
+  "state": "prepared",
+  "note": "confirm_token is bound to THIS payload_hash; any payload change invalidates it — re-run prepare and re-confirm"
+}
+
+$ ./mock-social.py --workspace /tmp/landing-ws execute act_1b46504fac5c818c WRONG-TOKEN
+{
+  "ok": false,
+  "error": {
+    "code": "confirm_stale",
+    "message": "confirm token does not match the CURRENT payload hash; the approved payload changed or the token is wrong — re-prepare and obtain a fresh explicit confirmation",
+    "action_id": "act_1b46504fac5c818c",
+    "payload_hash": "8be987a44b404d6459ccf13476c5fec8d5d6330616c6249226aed95f6e750706"
+  }
+}
+
+$ ./mock-social.py --workspace /tmp/landing-ws execute act_1b46504fac5c818c tok_82023ac87d4cdc0d79ec7b951cf111b9
+{
+  "ok": true,
+  "action_id": "act_1b46504fac5c818c",
+  "external_id": "mock-li-bb59e1828f36",
+  "receipt": {
+    "action_id": "act_1b46504fac5c818c",
+    "external_id": "mock-li-bb59e1828f36",
+    "action": "post",
+    "account": "example-linkedin",
+    "project": "example_project",
+    "payload_hash": "8be987a44b404d6459ccf13476c5fec8d5d6330616c6249226aed95f6e750706",
+    "executed_at": "2026-10-30T17:30:57Z",
+    "platform": "mock-social"
+  },
+  "state": "executed",
+  "log": ".connector-log.jsonl"
+}
+
+$ ./mock-social.py --workspace /tmp/landing-ws execute act_1b46504fac5c818c tok_82023ac87d4cdc0d79ec7b951cf111b9   # identical call, again
+{
+  "ok": false,
+  "error": {
+    "code": "duplicate",
+    "message": "action_id 'act_1b46504fac5c818c' was already executed; refusing to re-execute (no blind retries — check status instead)",
+    "action_id": "act_1b46504fac5c818c",
+    "prior_external_id": "mock-li-bb59e1828f36",
+    "executed_at": "2026-10-30T17:30:57Z"
+  }
+}
+
+$ ./mock-social.py --workspace /tmp/landing-ws status act_1b46504fac5c818c
+{
+  "ok": true,
+  "action_id": "act_1b46504fac5c818c",
+  "state": "executed",
+  "external_id": "mock-li-bb59e1828f36",
+  "account": "example-linkedin",
+  "project": "example_project",
+  "executed_at": "2026-10-30T17:30:57Z",
+  "receipt": {
+    "action_id": "act_1b46504fac5c818c",
+    "external_id": "mock-li-bb59e1828f36",
+    "action": "post",
+    "account": "example-linkedin",
+    "project": "example_project",
+    "payload_hash": "8be987a44b404d6459ccf13476c5fec8d5d6330616c6249226aed95f6e750706",
+    "executed_at": "2026-10-30T17:30:57Z",
+    "platform": "mock-social"
+  }
+}</pre>
+    </div>
+  </div>
+</section>
+
+<section id="quick-start">
+  <div class="wrap">
+    <h2><span class="hash">//</span>Quick start</h2>
+    <pre class="code"><span class="pr">git clone</span> https://github.com/naiamproducts/marketharness.git
+<span class="pr">cd</span> marketharness
+<span class="pr">./install.sh</span>        <span class="cm"># preflight -&gt; pinned runtime -&gt; rendered config -&gt; CLI link</span>
+<span class="pr">marketharness</span>       <span class="cm"># first launch prints the onboarding checklist</span>
+
+<span class="cm"># optional Qloo enablement — the harness is installed by you, never by us</span>
+<span class="pr">npm install --global</span> @qloo/qloo-harness   <span class="cm"># Node &gt;= 22.19</span>
+<span class="pr">qloo setup --qloo</span>                        <span class="cm"># event key -&gt; harness private config</span>
+<span class="pr">marketharness --stage-only</span>                <span class="cm"># re-render: mcp.qloo appears</span></pre>
+    <p>Then inside the TUI run <code>/marketharness-init</code> (workspace → company → project → model →
+      optional Qloo → optional social → first brief). Full setup, checklist and known limitations are in the
+      <a href="https://github.com/naiamproducts/marketharness#readme">README</a>.</p>
+    <p class="term-cap"><b>$ marketharness init-workspace /tmp/landing-ws --company example_company --project example_project</b></p>
+    <div class="term">
+      <div class="term-bar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>
+        <span class="term-title">init-workspace — scaffold summary</span></div>
+      <pre class="term-body tall">created workspace.yaml
+created companies/example_company/accounts/example-linkedin.yaml
+created companies/example_company/brand/identity.md
+created companies/example_company/brand/voice.md
+created companies/example_company/company.yaml
+created companies/example_company/policies/community.md
+created companies/example_company/policies/escalation.md
+created companies/example_company/policies/publishing.md
+created companies/example_company/projects/example_project/AGENTS.md
+created companies/example_company/projects/example_project/community/playbook.md
+created companies/example_company/projects/example_project/knowledge/approved-claims.md
+created companies/example_company/projects/example_project/knowledge/faq.md
+created companies/example_company/projects/example_project/knowledge/product.md
+created companies/example_company/projects/example_project/project.yaml
+created companies/example_company/projects/example_project/research/.gitkeep
+created companies/example_company/projects/example_project/strategy/.gitkeep
+created companies/example_company/projects/example_project/experiments/.gitkeep
+created companies/example_company/projects/example_project/campaigns/.gitkeep
+created companies/example_company/projects/example_project/reports/.gitkeep
+done: 19 created, 0 kept — workspace at /tmp/landing-ws
+
+Next steps:
+  1. Fill in company display name: companies/example_company/company.yaml
+  2. Fill in brand/identity.md and brand/voice.md, and the policies if the starter rules don't fit.
+  3. Open the project with: marketharness /tmp/landing-ws/companies/example_company/projects/example_project
+  4. Run the first-run onboarding command: marketharness-init</pre>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <div class="links">
+      <a href="https://github.com/naiamproducts/marketharness">GitHub</a>
+      <a href="https://github.com/naiamproducts/marketharness#readme">README</a>
+      <a href="https://github.com/qloo/qloo-hackathon-kit">Qloo Hackathon Kit</a>
+      <a href="#hero">Back to top</a>
+    </div>
+    <p class="attr">Built on OpenCode (MIT). Qloo integration follows the official Qloo Hackathon Kit.</p>
+    <p class="attr">© 2026 MarketHarness. MIT licensed.</p>
+  </div>
+</footer>
+
+</body>
+</html>
