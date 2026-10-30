@@ -43,7 +43,7 @@ Rules for agents working on this project; company policies add to them
 
 - Never publish directly. Prepare via the connector, require explicit user
   confirmation binding account + project + full text + attachments + target;
-  any change = new approval. Only `marketagents-publish` executes.
+  any change = new approval. Only `marketharness-publish` executes.
 - Deleting content is forbidden.
 
 ## Deliverable paths (all relative to this project directory)

@@ -18,7 +18,7 @@ status   <action_id>
 
 All output is JSON on stdout. Errors are `{ok: false, error: {code, message}}`.
 Exit codes: 0 ok, 2 structured error. Workspace can also come from
-`$MARKETAGENTS_WORKSPACE`. The workspace must exist (create one with
+`$MARKETHARNESS_WORKSPACE`. The workspace must exist (create one with
 `bin/init-workspace`).
 
 ## 3-command demo
@@ -33,7 +33,7 @@ Exit codes: 0 ok, 2 structured error. Workspace can also come from
    cd connectors/mock-social
    ./mock-social.py --workspace "$WS" prepare post \
      --account example-linkedin --project example_project \
-     --text "Hello from marketagents — first mock post."
+     --text "Hello from marketharness — first mock post."
    ```
 
    Note the returned `action_id` and `confirm_token`.

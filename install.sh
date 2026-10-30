@@ -1,18 +1,18 @@
 #!/usr/bin/env bash
-# marketagents installer — hermetic OpenCode V1 distribution for a marketing team.
+# marketharness installer — hermetic OpenCode V1 distribution for a marketing team.
 #
 # Installs, idempotently:
 #   1. the pinned OpenCode V1 runtime (opencode-ai@1.19.3) into its OWN npm
-#      prefix: ~/.local/share/marketagents/opencode — never ~/.opencode,
+#      prefix: ~/.local/share/marketharness/opencode — never ~/.opencode,
 #      never ~/.local/share/opencode*, never the system `opencode` command
-#   2. the marketagents repo copy -> ~/.local/share/marketagents
-#      (from MARKETAGENTS_SOURCE=<dir> — re-copied on every run — or by
-#      cloning MARKETAGENTS_REPO_URL)
-#   3. the rendered profile config -> ~/.config/marketagents/opencode
+#   2. the marketharness repo copy -> ~/.local/share/marketharness
+#      (from MARKETHARNESS_SOURCE=<dir> — re-copied on every run — or by
+#      cloning MARKETHARNESS_REPO_URL)
+#   3. the rendered profile config -> ~/.config/marketharness/opencode
 #      (staging runs through the launcher's --stage-only mode so install and
 #      first run share ONE render implementation: placeholders, qloo wiring,
 #      .bak.<timestamp> backups of edited staged files)
-#   4. the `marketagents` symlink -> ~/.local/bin/marketagents (collision
+#   4. the `marketharness` symlink -> ~/.local/bin/marketharness (collision
 #      guard, PATH-shadow warning)
 #
 # The user's existing OpenCode install (~/.config/opencode,
@@ -22,7 +22,7 @@
 # Modes:
 #   ./install.sh                 full install (see above)
 #   ./install.sh --update        re-sync: source re-copy when
-#                                MARKETAGENTS_SOURCE is set, else git
+#                                MARKETHARNESS_SOURCE is set, else git
 #                                fast-forward when installed from a clone
 #                                (refuses a dirty or diverged checkout);
 #                                edited staged config files are backed up as
@@ -31,14 +31,14 @@
 #                                home is removed only after an explicit
 #                                confirmation on a TTY (kept otherwise)
 #   ./install.sh --force         back up and replace a conflicting
-#                                ~/.local/bin/marketagents entry
+#                                ~/.local/bin/marketharness entry
 #
 # Environment:
-#   MARKETAGENTS_SOURCE    local checkout to install from (re-copied every run)
-#   MARKETAGENTS_REPO_URL  git URL to clone when no source is given
-#                          (default: https://github.com/naiamproducts/marketagents)
-#   MARKETAGENTS_ROOT      install root (default: ~/.local/share/marketagents)
-#   MARKETAGENTS_HOME      config home  (default: ~/.config/marketagents)
+#   MARKETHARNESS_SOURCE    local checkout to install from (re-copied every run)
+#   MARKETHARNESS_REPO_URL  git URL to clone when no source is given
+#                          (default: https://github.com/naiamproducts/marketharness)
+#   MARKETHARNESS_ROOT      install root (default: ~/.local/share/marketharness)
+#   MARKETHARNESS_HOME      config home  (default: ~/.config/marketharness)
 set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -46,17 +46,17 @@ REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PRODUCT_VERSION="0.1.0"
 OPENCODE_PIN="1.19.3"
 
-INSTALL_ROOT="${MARKETAGENTS_ROOT:-$HOME/.local/share/marketagents}"
+INSTALL_ROOT="${MARKETHARNESS_ROOT:-$HOME/.local/share/marketharness}"
 RUNTIME_PREFIX="$INSTALL_ROOT/opencode"
 RUNTIME_BIN="$RUNTIME_PREFIX/node_modules/.bin/opencode"
-CONFIG_HOME="${MARKETAGENTS_HOME:-$HOME/.config/marketagents}"
+CONFIG_HOME="${MARKETHARNESS_HOME:-$HOME/.config/marketharness}"
 CONFIG_DIR="$CONFIG_HOME/opencode"
 
 BIN_DIR="$HOME/.local/bin"
-CLI_LINK="$BIN_DIR/marketagents"
-CLI_TARGET="$INSTALL_ROOT/bin/marketagents"
+CLI_LINK="$BIN_DIR/marketharness"
+CLI_TARGET="$INSTALL_ROOT/bin/marketharness"
 
-REPO_URL="${MARKETAGENTS_REPO_URL:-https://github.com/naiamproducts/marketagents}"
+REPO_URL="${MARKETHARNESS_REPO_URL:-https://github.com/naiamproducts/marketharness}"
 ORIGINAL_PATH="$PATH"
 
 # --- Presentation -----------------------------------------------------------
@@ -111,10 +111,10 @@ as_root() {
 
 # --- 1. Preflight -----------------------------------------------------------
 preflight() {
-  printf '\n%smarketagents installer%s (OpenCode V1 %s, isolated)\n\n' "$INDIGO" "$RESET" "$OPENCODE_PIN"
+  printf '\n%smarketharness installer%s (OpenCode V1 %s, isolated)\n\n' "$INDIGO" "$RESET" "$OPENCODE_PIN"
 
   [[ "$(uname -s)" == "Linux" ]] \
-    || fail "marketagents currently supports Linux only (detected: $(uname -s))."
+    || fail "marketharness currently supports Linux only (detected: $(uname -s))."
 
   local pkgmgr="" m
   for m in apt-get dnf pacman zypper; do
@@ -211,7 +211,7 @@ install_runtime() {
 # --- 3. Repo copy -----------------------------------------------------------
 copy_source() {
   local src="$1"
-  [[ -d "$src" ]] || fail "MARKETAGENTS_SOURCE=$src is not a directory"
+  [[ -d "$src" ]] || fail "MARKETHARNESS_SOURCE=$src is not a directory"
   src="$(cd "$src" && pwd)"
   if [[ "$src" == "$(readlink -f "$INSTALL_ROOT" 2>/dev/null || echo x)" ]]; then
     info "Source IS the install dir — nothing to copy"
@@ -221,7 +221,7 @@ copy_source() {
   # Re-sync copy: the tar excludes runtime dirs, git metadata and backups, so
   # re-copying refreshes product files without touching the pinned runtime,
   # local state, or any .bak.<ts> backups.
-  info "Copying $src -> $INSTALL_ROOT (every run when MARKETAGENTS_SOURCE is set)"
+  info "Copying $src -> $INSTALL_ROOT (every run when MARKETHARNESS_SOURCE is set)"
   (cd "$src" && tar \
       --exclude=.git --exclude=opencode --exclude=node_modules \
       --exclude='*.bak.*' --exclude=__pycache__ --exclude='*.pyc' \
@@ -231,18 +231,18 @@ copy_source() {
 }
 
 acquire_source() {
-  printf '\n%s[2/4]%s marketagents repo copy\n' "$INDIGO" "$RESET"
+  printf '\n%s[2/4]%s marketharness repo copy\n' "$INDIGO" "$RESET"
 
-  if [[ -n "${MARKETAGENTS_SOURCE:-}" ]]; then
-    copy_source "$MARKETAGENTS_SOURCE"
+  if [[ -n "${MARKETHARNESS_SOURCE:-}" ]]; then
+    copy_source "$MARKETHARNESS_SOURCE"
   elif [[ -f "$CLI_TARGET" ]]; then
-    ok "marketagents already installed at $INSTALL_ROOT (reusing; set MARKETAGENTS_SOURCE=<dir> to re-sync from a local checkout)"
+    ok "marketharness already installed at $INSTALL_ROOT (reusing; set MARKETHARNESS_SOURCE=<dir> to re-sync from a local checkout)"
   else
     info "Cloning $REPO_URL -> $INSTALL_ROOT"
     git clone --depth 1 "$REPO_URL" "$INSTALL_ROOT" \
       || fail "git clone failed. Overrides:
-  local checkout:  MARKETAGENTS_SOURCE=<dir> ./install.sh
-  other remote:    MARKETAGENTS_REPO_URL=<git url> ./install.sh"
+  local checkout:  MARKETHARNESS_SOURCE=<dir> ./install.sh
+  other remote:    MARKETHARNESS_REPO_URL=<git url> ./install.sh"
   fi
 
   [[ -f "$CLI_TARGET" ]] || fail "install incomplete: missing $CLI_TARGET"
@@ -265,12 +265,12 @@ stage_config() {
 
 placeholder_check() {
   local leftovers
-  leftovers="$(grep -RIl '__MARKETAGENTS_ROOT__\|__MARKETAGENTS_CONFIG__\|__QLOO_MCP__' \
+  leftovers="$(grep -RIl '__MARKETHARNESS_ROOT__\|__MARKETHARNESS_CONFIG__\|__QLOO_MCP__' \
                  "$CONFIG_DIR" 2>/dev/null || true)"
   [[ -z "$leftovers" ]] \
     || fail "placeholder(s) not substituted in the staged config:
 $(printf '%s\n' "$leftovers")
-Re-run ./install.sh --stage-only via the launcher (marketagents --stage-only)."
+Re-run ./install.sh --stage-only via the launcher (marketharness --stage-only)."
 }
 
 # --- 5. CLI symlink ---------------------------------------------------------
@@ -282,26 +282,26 @@ link_cli() {
   # Collision guard: refuse to clobber anything that is not our own symlink.
   if [[ -e "$CLI_LINK" || -L "$CLI_LINK" ]]; then
     if [[ -L "$CLI_LINK" && "$(readlink "$CLI_LINK")" == "$CLI_TARGET" ]]; then
-      ok "marketagents already linked correctly"
+      ok "marketharness already linked correctly"
     elif [[ "$FORCE" == "1" ]]; then
       local backup
       backup="$CLI_LINK.bak.$(date +%Y%m%d%H%M%S)"
       mv "$CLI_LINK" "$backup"
       info "Existing entry moved to $backup"
       ln -s "$CLI_TARGET" "$CLI_LINK"
-      ok "marketagents linked (previous entry backed up)"
+      ok "marketharness linked (previous entry backed up)"
     else
-      fail "$CLI_LINK exists and is not the marketagents launcher. Re-run with --force to back it up and replace it."
+      fail "$CLI_LINK exists and is not the marketharness launcher. Re-run with --force to back it up and replace it."
     fi
   else
     ln -s "$CLI_TARGET" "$CLI_LINK"
-    ok "marketagents linked"
+    ok "marketharness linked"
   fi
 
   # Shadow detection: resolve what the USER'S shell would run (this script
   # never modifies PATH, so $ORIGINAL_PATH is the caller's environment as-is).
   local shadow shadow_real target_real kind verb remedy
-  shadow="$( (PATH="$ORIGINAL_PATH"; command -v marketagents) 2>/dev/null || true)"
+  shadow="$( (PATH="$ORIGINAL_PATH"; command -v marketharness) 2>/dev/null || true)"
   [[ "$shadow" == /* ]] || shadow=""
   if [[ -n "$shadow" ]]; then
     shadow_real="$(readlink -f "$shadow" 2>/dev/null || true)"
@@ -316,7 +316,7 @@ link_cli() {
         verb="Remove it, e.g.:"
         remedy="mv $shadow $shadow.old"
       fi
-      warn "WARNING: another 'marketagents' shadows the installed one:"
+      warn "WARNING: another 'marketharness' shadows the installed one:"
       printf '      %s  (%s)\n' "$shadow" "$kind" >&2
       printf '    Your commands would run that copy instead. %s\n' "$verb" >&2
       printf '      %s\n' "$remedy" >&2
@@ -325,7 +325,7 @@ link_cli() {
 
   case ":$ORIGINAL_PATH:" in
     *":$BIN_DIR:"*) ok "\$HOME/.local/bin is on PATH" ;;
-    *) info "NOTE: add $BIN_DIR to your PATH to run 'marketagents' directly" ;;
+    *) info "NOTE: add $BIN_DIR to your PATH to run 'marketharness' directly" ;;
   esac
 }
 
@@ -357,10 +357,10 @@ sanity() {
 
   # Run the launcher exactly as the user's shell resolves it (a stale copy
   # earlier on PATH would outrank our symlink).
-  run="$( (PATH="$ORIGINAL_PATH"; command -v marketagents) 2>/dev/null || true)"
+  run="$( (PATH="$ORIGINAL_PATH"; command -v marketharness) 2>/dev/null || true)"
   [[ "$run" == /* ]] || run="$CLI_LINK"
   if ! agent_out="$("$run" agent list 2>&1)"; then
-    fail "'marketagents agent list' failed:
+    fail "'marketharness agent list' failed:
 $agent_out"
   fi
   # `agent list` prints full permission records (very large). Extract just the
@@ -384,17 +384,17 @@ $agent_names"
 next_steps() {
   cat <<EOF
 
-${INDIGO}✔ marketagents installed.${RESET} (product $PRODUCT_VERSION, OpenCode V1 $OPENCODE_PIN, isolated)
+${INDIGO}✔ marketharness installed.${RESET} (product $PRODUCT_VERSION, OpenCode V1 $OPENCODE_PIN, isolated)
 
 ${BOLD}Next steps${RESET}
-  1. Make sure $BIN_DIR is on your PATH, then start the TUI: ${BOLD}marketagents${RESET}
+  1. Make sure $BIN_DIR is on your PATH, then start the TUI: ${BOLD}marketharness${RESET}
   2. Scaffold a workspace and open it:
-       marketagents init-workspace ~/workspaces/<name> --company <slug> --project <slug>
-       marketagents ~/workspaces/<name>/companies/<slug>/projects/<slug>
+       marketharness init-workspace ~/workspaces/<name> --company <slug> --project <slug>
+       marketharness ~/workspaces/<name>/companies/<slug>/projects/<slug>
   3. Inside the TUI run the first-run onboarding command:
-       ${BOLD}/marketagents-init${RESET}
+       ${BOLD}/marketharness-init${RESET}
      workspace -> company -> project -> model -> optional Qloo -> optional social -> first brief.
-  4. Pick an available model when asked (${BOLD}marketagents models${RESET}); if none is usable,
+  4. Pick an available model when asked (${BOLD}marketharness models${RESET}); if none is usable,
      the onboarding flow offers provider setup WITHOUT touching your existing
      OpenCode credentials (copy-only, explicit — never automatic).
 
@@ -405,18 +405,18 @@ Your OpenCode install (~/.config/opencode, ~/.local/share/opencode*,
 EOF
 }
 
-# --- Update mode (`marketagents update` / ./install.sh --update) ------------
+# --- Update mode (`marketharness update` / ./install.sh --update) ------------
 # Re-syncs the repo copy and re-renders the staged config. Edited staged
 # config files are backed up as <file>.bak.<timestamp> by the staging step
 # before they are replaced. The pinned runtime is a separate component and is
 # not changed (re-run a fresh install if the pin ever changes).
 run_update() {
-  printf '\n%smarketagents update%s\n\n' "$INDIGO" "$RESET"
-  [[ -f "$CLI_TARGET" ]] || fail "No marketagents install found at $INSTALL_ROOT. Install first: ./install.sh"
+  printf '\n%smarketharness update%s\n\n' "$INDIGO" "$RESET"
+  [[ -f "$CLI_TARGET" ]] || fail "No marketharness install found at $INSTALL_ROOT. Install first: ./install.sh"
   command -v python3 >/dev/null 2>&1 || fail "python3 is required to re-render the profile config"
 
-  if [[ -n "${MARKETAGENTS_SOURCE:-}" ]]; then
-    copy_source "$MARKETAGENTS_SOURCE"
+  if [[ -n "${MARKETHARNESS_SOURCE:-}" ]]; then
+    copy_source "$MARKETHARNESS_SOURCE"
   elif git -C "$INSTALL_ROOT" rev-parse --git-dir >/dev/null 2>&1; then
     local branch leftovers mode_only f old_sha new_sha
     branch="$(git -C "$INSTALL_ROOT" symbolic-ref --short HEAD 2>/dev/null || true)"
@@ -430,7 +430,7 @@ run_update() {
     if [[ -n "${leftovers//[[:space:]]/}" ]]; then
       fail "The checkout at $INSTALL_ROOT has local modifications; refusing to update over them.
 Inspect with:  git -C $INSTALL_ROOT status
-Commit or stash your changes there, then re-run 'marketagents update'."
+Commit or stash your changes there, then re-run 'marketharness update'."
     fi
     mode_only="$(git -C "$INSTALL_ROOT" diff --numstat | grep $'^0\t0\t' | cut -f3- || true)"
     if [[ -n "$mode_only" ]]; then
@@ -458,7 +458,7 @@ Refusing to reset or overwrite local work. Inspect with:
     fi
   else
     fail "The install at $INSTALL_ROOT is not a git clone (it was installed from a local source copy), so --update cannot refresh it automatically.
-Re-run with your local checkout:  MARKETAGENTS_SOURCE=<dir> ./install.sh --update"
+Re-run with your local checkout:  MARKETHARNESS_SOURCE=<dir> ./install.sh --update"
   fi
 
   chmod +x "$CLI_TARGET" "$INSTALL_ROOT/bin/init-workspace" 2>/dev/null || true
@@ -466,7 +466,7 @@ Re-run with your local checkout:  MARKETAGENTS_SOURCE=<dir> ./install.sh --updat
   stage_config
   link_cli
   qloo_note
-  printf '\n%sDone.%s Runtime unchanged (opencode-ai@%s). Restart marketagents to pick up changes.\n\n' "$INDIGO" "$RESET" "$OPENCODE_PIN"
+  printf '\n%sDone.%s Runtime unchanged (opencode-ai@%s). Restart marketharness to pick up changes.\n\n' "$INDIGO" "$RESET" "$OPENCODE_PIN"
 }
 
 # --- Uninstall mode ---------------------------------------------------------
@@ -474,17 +474,17 @@ Re-run with your local checkout:  MARKETAGENTS_SOURCE=<dir> ./install.sh --updat
 # root (runtime + repo copy), and — after an explicit confirmation on a TTY —
 # the config home. Never touches OpenCode or user workspaces.
 run_uninstall() {
-  printf '\n%smarketagents uninstall%s\n\n' "$INDIGO" "$RESET"
+  printf '\n%smarketharness uninstall%s\n\n' "$INDIGO" "$RESET"
 
   if [[ -L "$CLI_LINK" ]]; then
     if [[ "$(readlink "$CLI_LINK")" == "$CLI_TARGET" ]]; then
       rm -f "$CLI_LINK"
       ok "removed symlink $CLI_LINK"
     else
-      warn "leaving $CLI_LINK alone (it points at $(readlink "$CLI_LINK"), not the marketagents launcher)"
+      warn "leaving $CLI_LINK alone (it points at $(readlink "$CLI_LINK"), not the marketharness launcher)"
     fi
   elif [[ -e "$CLI_LINK" ]]; then
-    warn "leaving $CLI_LINK alone (it exists and is not a marketagents symlink)"
+    warn "leaving $CLI_LINK alone (it exists and is not a marketharness symlink)"
   else
     info "no symlink at $CLI_LINK"
   fi
@@ -492,8 +492,8 @@ run_uninstall() {
   if [[ -d "$INSTALL_ROOT" ]]; then
     [[ -n "$INSTALL_ROOT" && "$INSTALL_ROOT" != "/" && "$INSTALL_ROOT" != "$HOME" ]] \
       || fail "refusing to remove suspicious install root: '$INSTALL_ROOT'"
-    [[ -e "$INSTALL_ROOT/bin/marketagents" || -e "$INSTALL_ROOT/opencode" ]] \
-      || fail "refusing to remove $INSTALL_ROOT: does not look like a marketagents install (no bin/marketagents, no opencode/ runtime)"
+    [[ -e "$INSTALL_ROOT/bin/marketharness" || -e "$INSTALL_ROOT/opencode" ]] \
+      || fail "refusing to remove $INSTALL_ROOT: does not look like a marketharness install (no bin/marketharness, no opencode/ runtime)"
     rm -rf "$INSTALL_ROOT"
     ok "removed install root $INSTALL_ROOT (repo copy + pinned runtime)"
   else
@@ -503,7 +503,7 @@ run_uninstall() {
   if [[ -d "$CONFIG_HOME" ]]; then
     local answer=""
     if [[ -t 0 ]]; then
-      printf '  Remove the marketagents config home %s as well? [y/N] ' "$CONFIG_HOME"
+      printf '  Remove the marketharness config home %s as well? [y/N] ' "$CONFIG_HOME"
       read -r answer || answer=""
     fi
     case "$answer" in
@@ -517,7 +517,7 @@ run_uninstall() {
     esac
   fi
 
-  printf '\n%sNote:%s marketagents never touched your OpenCode install\n(~/.config/opencode, ~/.local/share/opencode*, ~/.opencode) or your\nworkspaces — that is still true after uninstall.\n\n' "$MUTED" "$RESET"
+  printf '\n%sNote:%s marketharness never touched your OpenCode install\n(~/.config/opencode, ~/.local/share/opencode*, ~/.opencode) or your\nworkspaces — that is still true after uninstall.\n\n' "$MUTED" "$RESET"
 }
 
 # --- Run ---------------------------------------------------------------------

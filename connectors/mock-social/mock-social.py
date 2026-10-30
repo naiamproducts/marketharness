@@ -31,7 +31,7 @@ import time
 
 LOG_NAME = ".connector-log.jsonl"
 PENDING_NAME = ".connector-pending.json"
-CONFIRM_SALT = "marketagents-mock-confirm-v1"
+CONFIRM_SALT = "marketharness-mock-confirm-v1"
 ALLOWED_ACTIONS = ("post", "reply")
 
 
@@ -123,11 +123,11 @@ def load_yaml_file(path):
 # Workspace resolution
 # --------------------------------------------------------------------------
 def resolve_workspace(args):
-    root = args.workspace or os.environ.get("MARKETAGENTS_WORKSPACE")
+    root = args.workspace or os.environ.get("MARKETHARNESS_WORKSPACE")
     if not root:
         fail("workspace_unresolved",
              "no workspace given: pass --workspace <dir> or set "
-             "MARKETAGENTS_WORKSPACE")
+             "MARKETHARNESS_WORKSPACE")
     root = os.path.abspath(root)
     if not os.path.isfile(os.path.join(root, "workspace.yaml")):
         fail("workspace_unresolved",
@@ -441,7 +441,7 @@ def build_parser():
         description="Local mock social connector (contract: connectors/README.md). "
                     "All output is JSON.")
     p.add_argument("--workspace", default=None,
-                   help="Workspace root (default: $MARKETAGENTS_WORKSPACE)")
+                   help="Workspace root (default: $MARKETHARNESS_WORKSPACE)")
     sub = p.add_subparsers(dest="command", required=True)
 
     v = sub.add_parser("verify", help="Check an account resolves and has an auth_ref")

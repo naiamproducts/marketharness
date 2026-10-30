@@ -1,6 +1,6 @@
 ---
 name: audience-research
-description: Audience discovery and synthesis with EVIDENCE/INTERPRETATION/HYPOTHESIS labeling; Qloo-backed queries via the qloo MCP when credentialed, honest when not. Use when the founder asks who the audience is, which segments exist, what they care about, or how demand signals look; use when marketagents-research needs a research flow; use before positioning or experiment design needs audience grounding.
+description: Audience discovery and synthesis with EVIDENCE/INTERPRETATION/HYPOTHESIS labeling; Qloo-backed queries via the qloo MCP when credentialed, honest when not. Use when the founder asks who the audience is, which segments exist, what they care about, or how demand signals look; use when marketharness-research needs a research flow; use before positioning or experiment design needs audience grounding.
 tags:
   - audience
   - research
@@ -8,7 +8,7 @@ tags:
   - evidence
   - synthesis
 version: 0.1.0
-author: marketagents
+author: marketharness
 license: MIT
 ---
 
@@ -17,7 +17,7 @@ license: MIT
 ## When to Use
 
 - The founder asks "who is this for?", "which segments should we target?", "what do they care about?".
-- `marketagents-research` starts its research flow.
+- `marketharness-research` starts its research flow.
 - `positioning` or `experiment-design` needs audience grounding first.
 
 ## Do not use

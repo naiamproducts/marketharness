@@ -13,7 +13,7 @@ enforcement.
    Re-prepare and re-confirm.
 3. **Deleting content is forbidden.** The `delete` permission is `deny` in the
    profile config; never attempt it through any connector.
-4. **Only `marketagents-publish` executes.** All other commands and skills
+4. **Only `marketharness-publish` executes.** All other commands and skills
    stop at drafts. `prepare` elsewhere is allowed; `execute` is not.
 5. **No blind retries.** On an uncertain outcome, check `status <action_id>`
    first. The action log deduplicates on `action_id`.

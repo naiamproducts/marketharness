@@ -29,7 +29,7 @@ Marketing only — community, replies, posts, triage. Out-of-scope requests (pro
 
 - Prepare the exact payload via the connector contract (`prepare`), then present it and require explicit user confirmation binding account + project + full text + attachments + target comment.
 - Any change after approval — one word, an attachment, the target — invalidates it: new approval required.
-- Only the `marketagents-publish` flow may reach the connector's `execute` step, with the confirm token for the approved payload. No blind retries; consult `status` first. Never delete content.
+- Only the `marketharness-publish` flow may reach the connector's `execute` step, with the confirm token for the approved payload. No blind retries; consult `status` first. Never delete content.
 
 ## Qloo honesty
 

@@ -1,6 +1,6 @@
 ---
 name: content-adaptation
-description: Turn one canonical message into per-channel variants using brand/voice.md and {{vars}} placeholders. Use when the founder wants one announcement adapted for LinkedIn, X, newsletter, or a blog; use when marketagents-publish needs post variants before prepare; use when a positioning pillar becomes channel-shaped content. Drafts only — publishing goes through the connector confirm flow.
+description: Turn one canonical message into per-channel variants using brand/voice.md and {{vars}} placeholders. Use when the founder wants one announcement adapted for LinkedIn, X, newsletter, or a blog; use when marketharness-publish needs post variants before prepare; use when a positioning pillar becomes channel-shaped content. Drafts only — publishing goes through the connector confirm flow.
 tags:
   - content
   - channels
@@ -8,7 +8,7 @@ tags:
   - voice
   - drafts
 version: 0.1.0
-author: marketagents
+author: marketharness
 license: MIT
 ---
 
@@ -17,14 +17,14 @@ license: MIT
 ## When to Use
 
 - One canonical message must become variants for several channels (LinkedIn post, X thread, newsletter blurb, blog teaser).
-- `marketagents-publish` needs a channel-shaped draft before the connector's `prepare` step.
+- `marketharness-publish` needs a channel-shaped draft before the connector's `prepare` step.
 - A messaging pillar from `strategy/positioning.md` becomes channel content.
 
 ## Do not use
 
 - For drafting replies to incoming comments (use `response-drafting`).
 - For structuring the brief (use `brief-intake`).
-- **Never for publishing.** This skill produces draft files only. Publishing happens ONLY in the `marketagents-publish` flow: connector `prepare` → explicit user confirmation binding account + project + full text + attachments + target → connector `execute`. Any change after approval = new approval. Deleting content is forbidden.
+- **Never for publishing.** This skill produces draft files only. Publishing happens ONLY in the `marketharness-publish` flow: connector `prepare` → explicit user confirmation binding account + project + full text + attachments + target → connector `execute`. Any change after approval = new approval. Deleting content is forbidden.
 
 ## Prerequisites
 
@@ -42,7 +42,7 @@ license: MIT
 5. **Adapt per channel**, respecting each channel's conventions (length, format, CTA style), with voice conformance checked against `brand/voice.md`. Each variant states its channel, account handle, and the vars used.
 6. **Policy check.** Read `policies/publishing.md`: nothing in a variant may violate it (e.g., claims not approved, required disclosures missing).
 7. **Label anything interpretive** in variant notes as `EVIDENCE | INTERPRETATION | HYPOTHESIS` with citations; the drafts themselves contain only approved/cited claims.
-8. **Write the deliverables** and summarize chat as: list of variants with paths → open vars if any → next step is `marketagents-publish` (prepare → confirm), owned by the community workstream.
+8. **Write the deliverables** and summarize chat as: list of variants with paths → open vars if any → next step is `marketharness-publish` (prepare → confirm), owned by the community workstream.
 
 ## Output Shape
 
@@ -66,4 +66,4 @@ Vars used: {{hook}} = ..., {{cta}} = ...
 <the variant text, ready for the connector's prepare step>
 ```
 
-Chat summary: variant list → open `{{vars}}` → "next: marketagents-publish (prepare → confirm → execute by connector)".
+Chat summary: variant list → open `{{vars}}` → "next: marketharness-publish (prepare → confirm → execute by connector)".

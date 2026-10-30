@@ -1,6 +1,6 @@
 ---
 name: results-review
-description: Judge experiment outcomes — verdict per experiment (VALIDATED / PROMISING / UNVALIDATED / REJECTED) from the connector action log and metric files against pre-registered thresholds; writes reports/. Use when the founder asks how experiments performed; use when marketagents-report consolidates results; use at experiment timebox end. Read-only plus a report file — never prepares or executes connector actions.
+description: Judge experiment outcomes — verdict per experiment (VALIDATED / PROMISING / UNVALIDATED / REJECTED) from the connector action log and metric files against pre-registered thresholds; writes reports/. Use when the founder asks how experiments performed; use when marketharness-report consolidates results; use at experiment timebox end. Read-only plus a report file — never prepares or executes connector actions.
 tags:
   - results
   - review
@@ -8,7 +8,7 @@ tags:
   - verdict
   - reporting
 version: 0.1.0
-author: marketagents
+author: marketharness
 license: MIT
 ---
 
@@ -17,7 +17,7 @@ license: MIT
 ## When to Use
 
 - The founder asks "how did that experiment go?".
-- `marketagents-report` consolidates results across experiments.
+- `marketharness-report` consolidates results across experiments.
 - An experiment's timebox ended and a verdict is due.
 
 ## Do not use

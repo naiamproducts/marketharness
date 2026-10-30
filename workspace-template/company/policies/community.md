@@ -2,7 +2,7 @@
 
 Starter rules. Triage and reply drafting (skills: community-triage,
 response-drafting) follow these; sending always goes through the
-marketagents-publish confirm flow.
+marketharness-publish confirm flow.
 
 ## Response SLA
 

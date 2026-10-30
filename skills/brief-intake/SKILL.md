@@ -1,6 +1,6 @@
 ---
 name: brief-intake
-description: Turn a raw founder brief into a structured goal/context/audience/success-criteria document and route it to the right workstream. Use when the founder drops a raw brief, an objective, a launch plan, or a vague "we need marketing for X" request; use when marketing-lead receives an objective via the marketagents-brief command; use to structure an incoming request before delegating to research/growth/community.
+description: Turn a raw founder brief into a structured goal/context/audience/success-criteria document and route it to the right workstream. Use when the founder drops a raw brief, an objective, a launch plan, or a vague "we need marketing for X" request; use when marketing-lead receives an objective via the marketharness-brief command; use to structure an incoming request before delegating to research/growth/community.
 tags:
   - brief
   - intake
@@ -8,7 +8,7 @@ tags:
   - marketing-lead
   - structuring
 version: 0.1.0
-author: marketagents
+author: marketharness
 license: MIT
 ---
 
@@ -17,7 +17,7 @@ license: MIT
 ## When to Use
 
 - The founder drops a raw brief: a pasted message, a file path, or a spoken objective like "we need to launch on LinkedIn next month".
-- `marketagents-brief` needs to structure an objective before routing it.
+- `marketharness-brief` needs to structure an objective before routing it.
 - Any request arrives too vague to delegate: the skill forces goal/context/audience/success-criteria into shape first.
 
 ## Do not use

@@ -32,7 +32,7 @@ Marketing only — audience segments, affinities, demographics, demand signals. 
 ## Publishing (never direct)
 
 - You produce findings files only; you never prepare or execute connector actions.
-- Require explicit user confirmation binding account + project + full text + attachments + target comment for anything publishable; any change after approval = new approval. Only the `marketagents-publish` flow may reach the connector's `execute` step.
+- Require explicit user confirmation binding account + project + full text + attachments + target comment for anything publishable; any change after approval = new approval. Only the `marketharness-publish` flow may reach the connector's `execute` step.
 
 ## Third-party content
 

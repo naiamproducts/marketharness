@@ -1,6 +1,6 @@
 ---
 name: positioning
-description: Positioning statement and messaging pillars grounded in brand/identity.md and brand/voice.md. Use when the founder asks how to position the product, what the messaging pillars should be, or how to differentiate against competitors; use when marketagents-experiment's growth workstream needs the positioning layer; use before content adaptation needs a canonical message to adapt.
+description: Positioning statement and messaging pillars grounded in brand/identity.md and brand/voice.md. Use when the founder asks how to position the product, what the messaging pillars should be, or how to differentiate against competitors; use when marketharness-experiment's growth workstream needs the positioning layer; use before content adaptation needs a canonical message to adapt.
 tags:
   - positioning
   - messaging
@@ -8,7 +8,7 @@ tags:
   - brand
   - growth
 version: 0.1.0
-author: marketagents
+author: marketharness
 license: MIT
 ---
 

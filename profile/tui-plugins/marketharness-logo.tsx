@@ -7,45 +7,45 @@ import { readFileSync } from "node:fs"
 import { join } from "node:path"
 import { fileURLToPath } from "node:url"
 
-// marketagents home-screen logo for the OpenCode V1 (1.x) TUI.
+// marketharness home-screen logo for the OpenCode V1 (1.x) TUI.
 // V1 exposes a `home_logo` slot that V2 removed, so the V1 line gets a real
 // home-screen replacement. Three tiers, chunky rounded wordmark in the
 // OpenCode wordmark style:
-//   - full:    75-col x 7-row "marketagents" block art  (width >= 78 && height >= 14)
-//   - medium:  58-col x 3-row "marketagents" wordmark  (width >= 61 && height >= 10)
-//   - compact: single "◈ marketagents" line            (anything smaller)
+//   - full:    82-col x 7-row "marketharness" block art  (width >= 85 && height >= 14)
+//   - medium:  62-col x 3-row "marketharness" wordmark  (width >= 65 && height >= 10)
+//   - compact: single "◈ marketharness" line            (anything smaller)
 //
 // EDITABILITY: the art itself lives in logo.json NEXT TO this file (rendered
-// to ~/.config/marketagents/tui-plugins/logo.json by install.sh).
+// to ~/.config/marketharness/tui-plugins/logo.json by install.sh).
 // Edit logo.json — rows, colors, split column — and restart the TUI; no TSX
 // change needed. This file only holds the render logic and a hardcoded copy
 // of the default art used when logo.json is missing or unparseable, so a
 // broken logo.json can never break the TUI.
 
-const id = "marketagents-logo"
+const id = "marketharness-logo"
 
 // --- Default art (fallback only — the editable copy is logo.json) ----------
-// "market" in teal, "agents" in emerald: the full tier is two-tone split at
+// "market" in teal, "harness" in emerald: the full tier is two-tone split at
 // the gap column right after the t of "market"; the medium/compact tiers are
 // single-tone.
 const DEFAULT_WORD_A = "#2dd4bf"
 const DEFAULT_WORD_B = "#34d399"
 const DEFAULT_SPLIT = 40
 const DEFAULT_FULL = [
-  "                                                                           ",
-  "                       ██            ██                           ██       ",
-  "▄████████▄ ▄███▄ ▄███▄ ██  ██ ▄███▄ ████ ▄███▄ ▄███▄ ▄███▄ ▄███▄ ████ ▄███▄",
-  "██  ██  ██    ██ ██ ██ ██ ██  ██ ██  ██     ██ ██ ██ ██ ██ ██ ██  ██  ██   ",
-  "██  ██  ██ █████ ██    ████   █████  ██  █████ ██ ██ █████ ██ ██  ██  █████",
-  "██  ██  ██ ██ ██ ██    ██ ██  ██     ██  ██ ██ ▀███▀ ██    ██ ██  ██     ██",
-  "██  ██  ██ ▀███▀ ██    ██  ██ ▀███▀  ██  ▀███▀    ██ ▀███▀ ██ ██  ██  ▀███▀",
+  "                                                                                  ",
+  "                       ██            ██  ██                                       ",
+  "▄████████▄ ▄███▄ ▄███▄ ██  ██ ▄███▄ ████ ████▄ ▄███▄ ▄███▄ ▄███▄ ▄███▄ ▄███▄ ▄███▄",
+  "██  ██  ██    ██ ██ ██ ██ ██  ██ ██  ██  ██ ██    ██ ██ ██ ██ ██ ██ ██ ██    ██   ",
+  "██  ██  ██ █████ ██    ████   █████  ██  ██ ██ █████ ██    ██ ██ █████ █████ █████",
+  "██  ██  ██ ██ ██ ██    ██ ██  ██     ██  ██ ██ ██ ██ ██    ██ ██ ██       ██    ██",
+  "██  ██  ██ ▀███▀ ██    ██  ██ ▀███▀  ██  ██ ██ ▀███▀ ██    ██ ██ ▀███▀ ▀███▀ ▀███▀",
 ]
 const DEFAULT_MEDIUM = [
-  "◈                ▀          ▀                      ▀      ",
-  "  █▀█▀█ █▀▄▄ █▀▄ █ ▄█ █▀▀▀ ███ █▀▄▄ █▀▀█ █▀▀▀ ███ ███ █▀▀▀",
-  "  █ █ █ ▄▄██ █   █▀█  ██▄   █  ▄▄██ ▄███ ██▄  █ █  █  ▄▄▄█",
+  "◈                ▀          ▀  ▀                              ",
+  "  █▀█▀█ █▀▄▄ █▀▄ █ ▄█ █▀▀▀ ███ ███ █▀▄▄ █▀▄ ███ █▀▀▀ █▀▀▀ █▀▀▀",
+  "  █ █ █ ▄▄██ █   █▀█  ██▄   █  █ █ ▄▄██ █   █ █ ██▄  ▄▄▄█ ▄▄▄█",
 ]
-const DEFAULT_COMPACT = "◈ marketagents"
+const DEFAULT_COMPACT = "◈ marketharness"
 
 // --- logo.json loading (best effort, per tier) -----------------------------
 // Resolved NEXT TO this plugin file: the V1 TSX loader runs the plugin under
@@ -136,8 +136,8 @@ const Logo = () => {
   const dim = useTerminalDimensions()
   const lines = createMemo(() => {
     const term = dim()
-    if (term.width >= 78 && term.height >= 14) return fullLines
-    if (term.width >= 61 && term.height >= 10) return mediumLines
+    if (term.width >= 85 && term.height >= 14) return fullLines
+    if (term.width >= 65 && term.height >= 10) return mediumLines
     return compactLines
   })
 

@@ -1,5 +1,5 @@
 {
   "$schema": "https://opencode.ai/tui.json",
-  "theme": "marketagents",
-  "plugin": ["__MARKETAGENTS_CONFIG__/tui-plugins/marketagents-logo.tsx"]
+  "theme": "marketharness",
+  "plugin": ["__MARKETHARNESS_CONFIG__/tui-plugins/marketharness-logo.tsx"]
 }

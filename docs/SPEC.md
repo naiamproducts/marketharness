@@ -1,15 +1,15 @@
-# marketagents — Architecture Spec (v0.1, MVP)
+# marketharness — Architecture Spec (v0.1, MVP)
 
 A marketing-team distribution of OpenCode **V1 only**, isolated from any
 existing OpenCode installation. Working name from the product spec
-("Stratourke") is retired — the product is **marketagents** everywhere:
+("Stratourke") is retired — the product is **marketharness** everywhere:
 executable, package, dirs, docs.
 
 Derived from the product spec "Equipo de agentes de marketing basado en
 OpenCode" (v0.1 MVP) with these settled decisions:
 
 1. **V1 only**, runtime pinned: `opencode-ai@1.19.3` installed under
-   `~/.local/share/marketagents/opencode/` (own npm prefix). No dependency on
+   `~/.local/share/marketharness/opencode/` (own npm prefix). No dependency on
    the system `opencode` binary. Capabilities verified against THIS tag only.
 2. **No source fork.** Identity + isolation are achieved by distribution
    (own runtime, own XDG dirs, own config render) — zero OpenCode code
@@ -23,14 +23,14 @@ OpenCode" (v0.1 MVP) with these settled decisions:
 
 ## 1. Isolation contract (spec §4 — acceptance criteria 1-5)
 
-`bin/marketagents` launcher sets, before exec:
+`bin/marketharness` launcher sets, before exec:
 
 ```
-MARKETAGENTS_HOME       ~/.config/marketagents   (XDG_CONFIG_HOME)
-XDG_DATA_HOME           $MARKETAGENTS_HOME/data
-XDG_STATE_HOME          $MARKETAGENTS_HOME/state
-XDG_CACHE_HOME          $MARKETAGENTS_HOME/cache
-OPENCODE_CONFIG         $MARKETAGENTS_HOME/opencode/opencode.json  (rendered)
+MARKETHARNESS_HOME       ~/.config/marketharness   (XDG_CONFIG_HOME)
+XDG_DATA_HOME           $MARKETHARNESS_HOME/data
+XDG_STATE_HOME          $MARKETHARNESS_HOME/state
+XDG_CACHE_HOME          $MARKETHARNESS_HOME/cache
+OPENCODE_CONFIG         $MARKETHARNESS_HOME/opencode/opencode.json  (rendered)
 ```
 
 - Never reads or writes the user's `~/.config/opencode`, `~/.local/share/
@@ -43,20 +43,20 @@ OPENCODE_CONFIG         $MARKETAGENTS_HOME/opencode/opencode.json  (rendered)
   config/agents resolve; document the observed behavior in README).
 - Import of existing config/credentials, if ever offered, is copy-only,
   explicit, never symlinks. Not in MVP.
-- Uninstall removes only `~/.local/share/marketagents`, `~/.local/bin/
-  marketagents`, `~/.config/marketagents` (after explicit confirmation) and
+- Uninstall removes only `~/.local/share/marketharness`, `~/.local/bin/
+  marketharness`, `~/.config/marketharness` (after explicit confirmation) and
   never touches OpenCode or user workspaces.
 
 ## 2. Repo layout
 
 ```
-marketagents/
+marketharness/
 ├── README.md
 ├── AGENTS.md                  # rules for agents running INSIDE this repo's dev
 ├── docs/SPEC.md               # this file
 ├── install.sh                 # preflight → npm runtime pin → render → link CLI
 ├── bin/
-│   ├── marketagents           # hermetic V1 launcher (see §1)
+│   ├── marketharness           # hermetic V1 launcher (see §1)
 │   └── init-workspace         # scaffold workspace tree (§5)
 ├── profile/
 │   ├── opencode.json          # V1 config: agents, skills paths, permissions,
@@ -67,10 +67,10 @@ marketagents/
 │   │   ├── growth.md              mode: primary
 │   │   ├── community.md           mode: primary
 │   │   └── audience-researcher.md mode: subagent (Qloo-backed specialist)
-│   ├── tui.json               # theme + logo plugin (placeholder __MARKETAGENTS_CONFIG__)
-│   ├── themes/marketagents.json
+│   ├── tui.json               # theme + logo plugin (placeholder __MARKETHARNESS_CONFIG__)
+│   ├── themes/marketharness.json
 │   └── tui-plugins/
-│       ├── marketagents-logo.tsx   # 3-tier home_logo wordmark (V1 slot)
+│       ├── marketharness-logo.tsx   # 3-tier home_logo wordmark (V1 slot)
 │       └── logo.json               # EDITABLE art (V1 slot contract)
 ├── skills/                    # 8 skills (§4)
 ├── workspace-template/        # files copied/rendered by init-workspace (§5)
@@ -128,7 +128,7 @@ results-review          read action log + metrics → verdict per experiment (VA
 ```
 
 Frontmatter: `name, description (with trigger phrases), tags, version: 0.1.0,
-author: marketagents, license: MIT`. Body: `When to Use / Do not use /
+author: marketharness, license: MIT`. Body: `When to Use / Do not use /
 Prerequisites / Workflow / Output Shape`. Scripts (python3 stdlib, only where
 deterministic help earns it): `experiment-design/scripts/ice_score.py`,
 `results-review/scripts/metric_delta.py`. A skill never contains publishing
@@ -219,14 +219,14 @@ render; agents state "no Qloo research performed" (§3).
 ## 8. Commands (V1 `command` key — {description, template})
 
 ```
-marketagents-init      first-run onboarding (spec §11): open workspace → company →
+marketharness-init      first-run onboarding (spec §11): open workspace → company →
                        project → model → optional Qloo → optional social → start brief
-marketagents-brief     brief-intake → route to research/growth
-marketagents-research  audience research flow (research agent)
-marketagents-experiment  design an experiment (growth)
-marketagents-publish   prepare → confirm → execute → log (community) — the ONLY
+marketharness-brief     brief-intake → route to research/growth
+marketharness-research  audience research flow (research agent)
+marketharness-experiment  design an experiment (growth)
+marketharness-publish   prepare → confirm → execute → log (community) — the ONLY
                        command that may reach the connector's execute
-marketagents-report    results-review consolidation
+marketharness-report    results-review consolidation
 ```
 Template structure (command template pattern): inputs to collect (one
 question at a time) → skills to load → method → output shape →
@@ -234,9 +234,9 @@ connector/confirmation rules.
 
 ## 9. First-run experience (spec §11)
 
-`install.sh` finishes with the onboarding checklist; `marketagents` first
+`install.sh` finishes with the onboarding checklist; `marketharness` first
 launch prints: create/open workspace (init-workspace), register company +
-project, pick an available model (probe `marketagents models`; if no usable
+project, pick an available model (probe `marketharness models`; if no usable
 free model, explain + offer provider config WITHOUT touching existing
 OpenCode credentials — copy-only, explicit), connect Qloo optionally, connect
 a social account optionally, start a brief.
@@ -269,5 +269,5 @@ mock connector flows; simplicity: add-a-skill test).
 - All artifacts in English. Conventional commits, no AI attribution.
 - MIT; keep OpenCode attribution notices (THIRD_PARTY_NOTICES.md).
 - Do not reference private development repositories or paths inside the
-  shipped product docs — marketagents stands alone (patterns may be used
+  shipped product docs — marketharness stands alone (patterns may be used
   during development).

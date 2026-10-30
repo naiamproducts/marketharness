@@ -1,18 +1,18 @@
-# AGENTS.md — marketagents (development)
+# AGENTS.md — marketharness (development)
 
 Rules for people and agents **developing this repo**. The shipped product's runtime
 context lives in workspace files, not here.
 
 ## Purpose
 
-marketagents is a marketing-team distribution of **OpenCode V1 only**: own runtime
+marketharness is a marketing-team distribution of **OpenCode V1 only**: own runtime
 pin, own XDG dirs, own rendered config — identity by distribution, zero source-fork
 changes. `docs/SPEC.md` is authoritative; when code and SPEC disagree, fix the code.
 
 ## Layout
 
 - `docs/SPEC.md` — architecture spec (source of truth)
-- `profile/` — config source rendered by `install.sh` into `~/.config/marketagents`
+- `profile/` — config source rendered by `install.sh` into `~/.config/marketharness`
   (`opencode.json`, `agent/*.md`, `tui.json`, `themes/`, `tui-plugins/`)
 - `skills/`, `connectors/`, `bin/`, `install.sh`, `workspace-template/` — see SPEC §2
   (skills: SPEC §4, connectors: SPEC §7, workspace: SPEC §5)
@@ -29,6 +29,6 @@ changes. `docs/SPEC.md` is authoritative; when code and SPEC disagree, fix the c
    written in English.
 4. **Conventional commits** (`feat:`, `fix:`, `docs:`, `chore:`, ...). No AI
    attribution or `Co-Authored-By` trailers.
-5. **Placeholders stay literal in `profile/`**: `__MARKETAGENTS_ROOT__` (skills
-   root) and `__MARKETAGENTS_CONFIG__` (rendered tui.json dir) are substituted by
+5. **Placeholders stay literal in `profile/`**: `__MARKETHARNESS_ROOT__` (skills
+   root) and `__MARKETHARNESS_CONFIG__` (rendered tui.json dir) are substituted by
    `install.sh`; never bake absolute dev paths into committed profile files.

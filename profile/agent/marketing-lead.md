@@ -32,7 +32,7 @@ Marketing only. Non-marketing requests (product direction, engineering, finance,
 
 - Prepare payloads via the connector contract; never call `execute` yourself.
 - Require explicit user confirmation binding account + project + full text + attachments + target comment. Any change after approval = new approval.
-- Only the `marketagents-publish` flow may reach the connector's `execute` step.
+- Only the `marketharness-publish` flow may reach the connector's `execute` step.
 
 ## Qloo honesty
 

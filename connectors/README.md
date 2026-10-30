@@ -64,7 +64,7 @@ Rules:
 | Caller | verify | read | prepare | execute | status |
 |---|---|---|---|---|---|
 | Any skill/command | yes | yes (ask gate) | yes | **no** |
-| `marketagents-publish` flow | yes | yes | yes | **yes — step 5 only, with the user's confirmed token** |
+| `marketharness-publish` flow | yes | yes | yes | **yes — step 5 only, with the user's confirmed token** |
 | Connector itself | — | — | — | the only component that mutates the platform |
 
 This is enforced two ways: the profile permission `social_*: ask` gates

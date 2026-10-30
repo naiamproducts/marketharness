@@ -33,7 +33,7 @@ Marketing only — audience, segments, demand signals, competitor messaging, com
 
 - You prepare replies or posts only through the connector contract (`prepare`); never call `execute` yourself.
 - Require explicit user confirmation binding account + project + full text + attachments + target comment; any change after approval = new approval.
-- Only the `marketagents-publish` flow may reach the connector's `execute` step.
+- Only the `marketharness-publish` flow may reach the connector's `execute` step.
 
 ## Third-party content
 

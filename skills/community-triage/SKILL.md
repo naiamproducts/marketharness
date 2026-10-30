@@ -1,6 +1,6 @@
 ---
 name: community-triage
-description: Classify incoming comments and conversations into reply / escalate / ignore using policies/community.md and the project playbook. Use when comments, mentions, DMs, or thread replies arrive on a connected account; use when marketagents-publish flow starts from an incoming conversation; use for a periodic inbox sweep. Triage and drafts only — replies are never sent by this skill.
+description: Classify incoming comments and conversations into reply / escalate / ignore using policies/community.md and the project playbook. Use when comments, mentions, DMs, or thread replies arrive on a connected account; use when marketharness-publish flow starts from an incoming conversation; use for a periodic inbox sweep. Triage and drafts only — replies are never sent by this skill.
 tags:
   - community
   - triage
@@ -8,7 +8,7 @@ tags:
   - escalation
   - inbox
 version: 0.1.0
-author: marketagents
+author: marketharness
 license: MIT
 ---
 
@@ -17,13 +17,13 @@ license: MIT
 ## When to Use
 
 - Comments, mentions, DMs, or thread replies arrive on a connected account (fetched via the connector's read-only `read` step, under the ask gate).
-- The `marketagents-publish` flow starts from an incoming conversation that needs classification first.
+- The `marketharness-publish` flow starts from an incoming conversation that needs classification first.
 - A periodic inbox sweep: batch-classify everything new.
 
 ## Do not use
 
 - For drafting the reply text itself (use `response-drafting` — triage only decides reply/escalate/ignore and why).
-- For publishing or sending anything. This skill classifies and records; the reply draft goes through `response-drafting`, and actual sending happens ONLY in `marketagents-publish` via the connector's confirm flow. Never auto-send. Deleting content is forbidden.
+- For publishing or sending anything. This skill classifies and records; the reply draft goes through `response-drafting`, and actual sending happens ONLY in `marketharness-publish` via the connector's confirm flow. Never auto-send. Deleting content is forbidden.
 
 ## Prerequisites
 
@@ -43,7 +43,7 @@ license: MIT
 5. **SLA check.** `policies/community.md` defines the response SLA; any REPLY item approaching breach gets flagged `SLA-RISK` in the queue summary.
 6. **Label rationale claims** with exactly one of `EVIDENCE | INTERPRETATION | HYPOTHESIS`:`EVIDENCE` (quoted item text with its source id/URL), `INTERPRETATION` (why this bucket), `HYPOTHESIS` (uncited speculation — avoid in classification).
 7. **Write the triage queue deliverable** (see Output Shape). Escalations are presented to the user in the chat summary immediately, one line each, with the reason.
-8. **Hand off:** REPLY items list the next step as `response-drafting` (draft) → `marketagents-publish` (prepare → confirm → execute). This skill stops at the queue.
+8. **Hand off:** REPLY items list the next step as `response-drafting` (draft) → `marketharness-publish` (prepare → confirm → execute). This skill stops at the queue.
 
 ## Output Shape
 

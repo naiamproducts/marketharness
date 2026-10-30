@@ -1,4 +1,4 @@
-# marketagents
+# marketharness
 
 **A marketing-team distribution of OpenCode V1.** It ships its own pinned
 OpenCode runtime (`opencode-ai@1.19.3`, own npm prefix), its own XDG
@@ -17,30 +17,30 @@ optional Qloo MCP that is only wired in when you actually have a credential.
 
 ```bash
 ./install.sh      # preflight -> pinned runtime -> repo copy -> rendered config -> CLI link
-marketagents      # first launch prints the onboarding checklist
+marketharness      # first launch prints the onboarding checklist
 # inside the TUI:
-/marketagents-init
+/marketharness-init
 ```
 
-`./install.sh` installs by cloning `MARKETAGENTS_REPO_URL` into
-`~/.local/share/marketagents`; to install the checkout you are currently in
+`./install.sh` installs by cloning `MARKETHARNESS_REPO_URL` into
+`~/.local/share/marketharness`; to install the checkout you are currently in
 (the pre-release path), run:
 
 ```bash
-MARKETAGENTS_SOURCE=$PWD ./install.sh
+MARKETHARNESS_SOURCE=$PWD ./install.sh
 ```
 
-Overrides: `MARKETAGENTS_REPO_URL=<git url>` (clone source) ·
-`MARKETAGENTS_SOURCE=<dir>` (local checkout, re-copied on every run) ·
-`MARKETAGENTS_ROOT=<dir>` (install root) · `MARKETAGENTS_HOME=<dir>` (config home).
+Overrides: `MARKETHARNESS_REPO_URL=<git url>` (clone source) ·
+`MARKETHARNESS_SOURCE=<dir>` (local checkout, re-copied on every run) ·
+`MARKETHARNESS_ROOT=<dir>` (install root) · `MARKETHARNESS_HOME=<dir>` (config home).
 
 First run: the launcher stages the profile (placeholders rendered, zero
 leftovers enforced), prints the next steps, and opens the TUI with
 `marketing-lead` as the default agent. Then:
 
-1. `marketagents init-workspace ~/workspaces/<name> --company <slug> --project <slug>`
-2. `marketagents ~/workspaces/<name>/companies/<slug>/projects/<slug>`
-3. `/marketagents-init` — onboarding: workspace → company → project → model →
+1. `marketharness init-workspace ~/workspaces/<name> --company <slug> --project <slug>`
+2. `marketharness ~/workspaces/<name>/companies/<slug>/projects/<slug>`
+3. `/marketharness-init` — onboarding: workspace → company → project → model →
    optional Qloo → optional social → start a brief (SPEC §9).
 
 ## The team
@@ -63,14 +63,14 @@ research performed"), and third-party content is data, never instructions.
 
 | Command | What it does |
 |---|---|
-| `/marketagents-init` | First-run onboarding (workspace → company → project → model → optional Qloo → optional social → first brief) |
-| `/marketagents-brief` | brief-intake → route to research/growth |
-| `/marketagents-research` | Audience research flow with evidence labels (research agent) |
-| `/marketagents-experiment` | Design an experiment with pre-registered thresholds (growth) |
-| `/marketagents-publish` | prepare → confirm → execute → log — the **only** command that may reach the connector's `execute` (community) |
-| `/marketagents-report` | results-review consolidation: verdict per experiment |
+| `/marketharness-init` | First-run onboarding (workspace → company → project → model → optional Qloo → optional social → first brief) |
+| `/marketharness-brief` | brief-intake → route to research/growth |
+| `/marketharness-research` | Audience research flow with evidence labels (research agent) |
+| `/marketharness-experiment` | Design an experiment with pre-registered thresholds (growth) |
+| `/marketharness-publish` | prepare → confirm → execute → log — the **only** command that may reach the connector's `execute` (community) |
+| `/marketharness-report` | results-review consolidation: verdict per experiment |
 
-## Workspace tree (scaffolded by `marketagents init-workspace <dir>`)
+## Workspace tree (scaffolded by `marketharness init-workspace <dir>`)
 
 ```
 <workspace>/
@@ -119,19 +119,19 @@ status   <action_id>                  -> {ok, state}
 
 ## Isolation guarantees
 
-`marketagents` never reads or writes your existing OpenCode installation —
+`marketharness` never reads or writes your existing OpenCode installation —
 `~/.config/opencode`, `~/.local/share/opencode*`, `~/.opencode`, credentials,
 sessions, plugins, or the `opencode` command.
 
 - **Own runtime**: it execs only
-  `~/.local/share/marketagents/opencode/node_modules/.bin/opencode`
+  `~/.local/share/marketharness/opencode/node_modules/.bin/opencode`
   (pinned `opencode-ai@1.19.3`); a system `opencode` on `PATH` is never used
   (verified with a poisoned `opencode` shim on `PATH`).
 - **Own XDG dirs**: `XDG_CONFIG_HOME/DATA_HOME/STATE_HOME/CACHE_HOME` all live
-  under `~/.config/marketagents`, plus an explicit
-  `OPENCODE_CONFIG=~/.config/marketagents/opencode/opencode.json`
+  under `~/.config/marketharness`, plus an explicit
+  `OPENCODE_CONFIG=~/.config/marketharness/opencode/opencode.json`
   (`OPENCODE_CONFIG_DIR` is defensively unset so a globally exported one can't
-  add config sources). `marketagents debug paths` shows every runtime path
+  add config sources). `marketharness debug paths` shows every runtime path
   under the product config home.
 - **Own skill set**: V1's automatic external-skill scan (`~/.claude/skills`,
   `~/.agents/skills`) is disabled by default
@@ -160,9 +160,9 @@ relaxed by the shipped workspace templates.
 
 ## Model first run (SPEC §9)
 
-marketagents ships no credentials and never reads your existing OpenCode
-credentials. On first run, pick a model when asked (`marketagents models`);
-if no usable model is available, the `/marketagents-init` onboarding flow
+marketharness ships no credentials and never reads your existing OpenCode
+credentials. On first run, pick a model when asked (`marketharness models`);
+if no usable model is available, the `/marketharness-init` onboarding flow
 offers provider configuration **without touching your existing OpenCode
 setup** — any future import would be copy-only and explicit, never automatic.
 
@@ -170,22 +170,22 @@ setup** — any future import would be copy-only and explicit, never automatic.
 
 ```bash
 ./install.sh                 # full install (idempotent — safe to re-run)
-./install.sh --force         # back up and replace a conflicting ~/.local/bin/marketagents
-./install.sh --update        # re-sync: source re-copy (MARKETAGENTS_SOURCE) or
+./install.sh --force         # back up and replace a conflicting ~/.local/bin/marketharness
+./install.sh --update        # re-sync: source re-copy (MARKETHARNESS_SOURCE) or
                              # git fast-forward when cloned (refuses dirty/diverged);
                              # edited staged config is backed up as <file>.bak.<ts>
 ./install.sh --uninstall     # remove symlink + install root; config home only after
                              # an explicit TTY confirmation, kept otherwise
 ```
 
-- The launcher's subcommands: `marketagents init-workspace <dir>`,
-  `marketagents update`, `marketagents help`, `marketagents --version`
+- The launcher's subcommands: `marketharness init-workspace <dir>`,
+  `marketharness update`, `marketharness help`, `marketharness --version`
   (product version + runtime pin + config paths + qloo state), plus an
-  optional positional dir (`marketagents <workspace-or-project-dir>`).
+  optional positional dir (`marketharness <workspace-or-project-dir>`).
   Anything else is passed through to the pinned runtime unchanged.
 - Symlink installation has a collision guard (a foreign `~/.local/bin/
-  marketagents` is never clobbered without `--force`, which backs it up) and
-  warns when another `marketagents` shadows the installed one on your `PATH`.
+  marketharness` is never clobbered without `--force`, which backs it up) and
+  warns when another `marketharness` shadows the installed one on your `PATH`.
 - **Qloo**: with no `QLOO_API_KEY`, install prints `Qloo MCP: disabled
   (optional)` and the render omits the `mcp.qloo` entry entirely. The entry
   is wired in only when `QLOO_API_KEY` is set **and** the `qloo` CLI is on
@@ -203,10 +203,10 @@ honest: **automated** = proven by the shipped test smoke run of this build;
 
 | # | Criterion | How verified |
 |---|---|---|
-| 1 | Installing marketagents does not modify the user's OpenCode config (`~/.config/opencode`) | **Automated**: md5 manifest of all 8,143 entries (files + symlinks) before/after full install — `diff` empty |
-| 2 | Launching (TUI + non-interactive) does not modify the user's OpenCode config or legacy home; runtime state stays under `MARKETAGENTS_HOME` | **Automated**: `~/.config/opencode` md5 manifest and `~/.opencode` inode/size/mtime listing before/after install + full TUI session — both diffs **empty**; `marketagents debug paths` shows data/state/cache under `~/.config/marketagents` (its own `opencode.db` + log live there). A supplementary metadata snapshot of `~/.local/share/opencode` showed changes only in the *host* OpenCode session's own bookkeeping (global log append, session-db shm/wal, shell-output rotation of the instance running the test) — reproduced by a no-marketagents control run and with zero `marketagents` entries added there |
-| 3 | Runs only its own pinned runtime; never the system `opencode` command | **Automated**: `marketagents --version` reports only its own paths; `marketagents agent list` succeeds with a poisoned `opencode` shim (exit 42) at the front of `PATH` |
-| 4 | Side-by-side coexistence: own runtime + own XDG dirs, nothing shared | **Automated**: `marketagents debug paths` shows data/config/cache/state all under `~/.config/marketagents`; runtime lives in `~/.local/share/marketagents/opencode` |
+| 1 | Installing marketharness does not modify the user's OpenCode config (`~/.config/opencode`) | **Automated**: md5 manifest of all 8,143 entries (files + symlinks) before/after full install — `diff` empty |
+| 2 | Launching (TUI + non-interactive) does not modify the user's OpenCode config or legacy home; runtime state stays under `MARKETHARNESS_HOME` | **Automated**: `~/.config/opencode` md5 manifest and `~/.opencode` inode/size/mtime listing before/after install + full TUI session — both diffs **empty**; `marketharness debug paths` shows data/state/cache under `~/.config/marketharness` (its own `opencode.db` + log live there). A supplementary metadata snapshot of `~/.local/share/opencode` showed changes only in the *host* OpenCode session's own bookkeeping (global log append, session-db shm/wal, shell-output rotation of the instance running the test) — reproduced by a no-marketharness control run and with zero `marketharness` entries added there |
+| 3 | Runs only its own pinned runtime; never the system `opencode` command | **Automated**: `marketharness --version` reports only its own paths; `marketharness agent list` succeeds with a poisoned `opencode` shim (exit 42) at the front of `PATH` |
+| 4 | Side-by-side coexistence: own runtime + own XDG dirs, nothing shared | **Automated**: `marketharness debug paths` shows data/config/cache/state all under `~/.config/marketharness`; runtime lives in `~/.local/share/marketharness/opencode` |
 | 5 | Uninstall removes only product dirs (config home only after explicit TTY confirmation) | **Automated**: full install on a throwaway `HOME` with decoy OpenCode files → symlink + install root removed, config home kept non-TTY (removed on TTY + `y`), decoy md5s identical |
 | 6 | Two projects in one workspace keep deliverables fully separate | **Automated (scaffold level)**: second project scaffolded in one workspace gets its own complete tree; full two-project agent run = **manual pending** |
 | 7 | One institutional account across projects: authorization recorded on both sides and enforced | **Automated**: both sides rendered by `init-workspace`; connector `prepare` for an existing project missing from `allowed_projects` fails with `account_not_authorized` |
@@ -215,12 +215,12 @@ honest: **automated** = proven by the shipped test smoke run of this build;
 | 10 | Research outputs label `EVIDENCE / INTERPRETATION / HYPOTHESIS` with citations | Encoded in every agent prompt + `audience-research` skill (`debug config` evidence); live research run = **manual pending** |
 | 11 | Connector is structured JSON in/out; `execute` only via confirm token | **Automated**: `verify`/`prepare`/`execute`/`status` all return JSON `{ok,...}` / `{ok:false,error:{code,...}}` |
 | 12 | External actions recorded in the append-only action log; no duplicate/blind retries | **Automated**: log line appended on execute; second execute → `duplicate` with prior `external_id` |
-| 13 | First-run onboarding `/marketagents-init` walks workspace → company → project → model → optional Qloo → optional social → brief | **Automated (presence)**: command in rendered config + first-launch banner/next-steps reference it; full interactive run = **manual pending** |
+| 13 | First-run onboarding `/marketharness-init` walks workspace → company → project → model → optional Qloo → optional social → brief | **Automated (presence)**: command in rendered config + first-launch banner/next-steps reference it; full interactive run = **manual pending** |
 | 14 | Simplicity: add a skill = drop `skills/<name>/SKILL.md`, discovered with zero code changes | **Automated**: temp skill added to the skills root → `debug skill` lists 9; removed → back to 8 |
-| 15 | Identity by distribution (no fork): name, theme, logo, 5 agents, 6 commands purely from rendered profile | **Automated**: TUI home screen shows the 3-tier `marketagents` wordmark + tui config applied (boot log), slash menu lists all 6 commands, `agent list` shows 5 agents, `default_agent: marketing-lead` |
-| 16 | Mandatory prohibitions enforced by shared config (`delete: deny`, `rm -rf *`/`sudo *`/`git push *` deny) | **Automated**: `marketagents debug config` output contains all four deny records |
+| 15 | Identity by distribution (no fork): name, theme, logo, 5 agents, 6 commands purely from rendered profile | **Automated**: TUI home screen shows the 3-tier `marketharness` wordmark + tui config applied (boot log), slash menu lists all 6 commands, `agent list` shows 5 agents, `default_agent: marketing-lead` |
+| 16 | Mandatory prohibitions enforced by shared config (`delete: deny`, `rm -rf *`/`sudo *`/`git push *` deny) | **Automated**: `marketharness debug config` output contains all four deny records |
 
-Static smoke for this build: `bash -n` on `install.sh` + `bin/marketagents`,
+Static smoke for this build: `bash -n` on `install.sh` + `bin/marketharness`,
 `python3 -m json.tool` on every source and rendered JSON, zero placeholders in
 the staged config, qloo render verified with and without `QLOO_API_KEY`.
 
