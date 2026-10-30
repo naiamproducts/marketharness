@@ -28,9 +28,13 @@
 #   MARKETHARNESS_HOME  config home (default: $HOME/.config/marketharness)
 #   MARKETHARNESS_ROOT  install root — runtime + installed repo copy
 #                      (default: $HOME/.local/share/marketharness)
-#   QLOO_API_KEY       enables the mcp.qloo entry in the rendered config, but
-#                      only when the `qloo` CLI is also on PATH; otherwise the
-#                      whole mcp.qloo entry is REMOVED from the render
+#   QLOO_API_KEY       optional server-style auth: passed through to the MCP
+#                      child when present. It is NOT required — the canonical
+#                      entry {"command":"qloo","args":["mcp"]} carries no key
+#                      of its own; the mcp.qloo entry is gated by the `qloo`
+#                      CLI on PATH plus a credential (this variable OR the
+#                      harness's own private config from `qloo setup --qloo`)
+#                      and is REMOVED from the render otherwise.
 set -euo pipefail
 
 # --- Locate this script (through symlinks) ---------------------------------
@@ -71,29 +75,168 @@ RESET=$'\033[0m'
 
 die() { printf '%smarketharness:%s %s\n' "$RED" "$RESET" "$*" >&2; exit 1; }
 
-qloo_path_or_empty() {
-  # The mcp.qloo entry is rendered in ONLY with a credential AND the qloo CLI.
-  if [[ -n "${QLOO_API_KEY:-}" ]] && command -v qloo >/dev/null 2>&1; then
-    readlink -f "$(command -v qloo)"
+# --- Qloo gate (SPEC §7) -----------------------------------------------------
+# Canonical MCP entry: {"command":"qloo","args":["mcp"]} — the credential NEVER
+# appears in any config file. It lives in the harness's own private config
+# (`qloo setup --qloo`) or in QLOO_API_KEY on the environment (server-style
+# auth, passed through to the MCP child right before exec).
+QLOO_MIN_VERSION="0.1.26"
+QLOO_GATE_FILE="$MARKETHARNESS_HOME/.qloo-gate"
+QLOO_TOKEN=""       # "qloo" -> render the mcp.qloo entry; "" -> omit it
+QLOO_CREDENTIAL=""  # environment | harness | missing | unknown
+QLOO_VERSION=""     # installed harness version ("" when unknown / not probed)
+QLOO_GATE_CHANGED=0
+
+# Cheap, stat-only fingerprint recomputed on EVERY launch. It moves exactly
+# when the credential state can move: the CLI appearing/disappearing,
+# QLOO_API_KEY being (un)set, or the harness's own config file being written.
+# Probing `qloo setup --status` costs seconds, so it runs only when this moves.
+qloo_gate_fingerprint() {
+  local bin=absent key=absent cfg=none cfg_file
+  if command -v qloo >/dev/null 2>&1; then bin=present; fi
+  if [[ -n "${QLOO_API_KEY:-}" ]]; then key=present; fi
+  cfg_file="${QLOO_HOME:-$HOME/.qloo}/config"
+  if [[ -f "$cfg_file" ]]; then
+    cfg="$(stat -c %Y "$cfg_file" 2>/dev/null || printf 'none')"
+  fi
+  printf 'bin=%s,key=%s,cfg=%s' "$bin" "$key" "$cfg"
+}
+
+qloo_gate_field() {
+  local key="$1" line
+  [[ -f "$QLOO_GATE_FILE" ]] || return 0
+  while IFS= read -r line; do
+    case "$line" in
+      "$key="*) printf '%s' "${line#*=}"; return 0 ;;
+    esac
+  done < "$QLOO_GATE_FILE"
+}
+
+# Credential probe. `qloo setup --status --json` is NON-INTERACTIVE by
+# construction (verified against @qloo/qloo-harness 0.1.26): --status forces
+# interactive:false, interactive setup refuses to run without a TTY
+# ("qloo setup: interactive setup requires a TTY. Use qloo setup --status
+# --json for automation."), and it makes no Qloo network call — it reads the
+# harness config plus local auth files only.
+# Prints: environment | harness | missing | unknown
+qloo_credential_state() {
+  local out parsed
+  if [[ -n "${QLOO_API_KEY:-}" ]]; then printf 'environment'; return 0; fi
+  if ! command -v qloo >/dev/null 2>&1; then printf 'missing'; return 0; fi
+  if command -v timeout >/dev/null 2>&1; then
+    out="$(timeout 25 qloo setup --status --json </dev/null 2>/dev/null || true)"
+  else
+    out="$(qloo setup --status --json </dev/null 2>/dev/null || true)"
+  fi
+  if [[ -z "$out" ]]; then printf 'unknown'; return 0; fi
+  parsed="$(printf '%s' "$out" | python3 -c '
+import json, sys
+try:
+    report = json.load(sys.stdin)
+    print("harness" if (report.get("qloo") or {}).get("ready") else "missing")
+except Exception:
+    print("unknown")
+' 2>/dev/null)" || parsed="unknown"
+  printf '%s' "${parsed:-unknown}"
+}
+
+# Warn — never fail — on an old harness (the official kit needs >= 0.1.26).
+# Echoes a message, or nothing when the version is acceptable/unknown.
+qloo_version_note() {
+  local ver="$1" lowest
+  [[ "$ver" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || return 0
+  lowest="$(printf '%s\n%s\n' "$QLOO_MIN_VERSION" "$ver" | sort -V | head -1)"
+  if [[ "$lowest" != "$QLOO_MIN_VERSION" ]]; then
+    printf 'qloo %s is older than the recommended %s — update with: npm install --global @qloo/qloo-harness (Node >= 22.19 is required to install the harness itself)' \
+      "$ver" "$QLOO_MIN_VERSION"
   fi
 }
 
-qloo_state() {
-  if [[ -z "${QLOO_API_KEY:-}" ]]; then
-    printf 'disabled (optional — no QLOO_API_KEY in the environment)'
-  elif ! command -v qloo >/dev/null 2>&1; then
-    printf 'not active (QLOO_API_KEY is set but the qloo CLI is not on PATH; mcp.qloo removed from the render)'
+# Refresh the gate, then decide whether mcp.qloo is rendered in. The probe runs
+# only when the fingerprint moved or staging is forced; any probe failure falls
+# back to RENDERING the entry, so the harness itself returns its clear auth
+# error instead of Qloo silently disappearing from the product.
+qloo_refresh_gate() {
+  local force_probe="${1:-0}" fp cached_fp cached_cred cached_ver note tmp
+  fp="$(qloo_gate_fingerprint)"
+  cached_fp="$(qloo_gate_field fingerprint)"
+  cached_cred="$(qloo_gate_field credential)"
+  cached_ver="$(qloo_gate_field version)"
+
+  if [[ "$force_probe" == "1" || -z "$cached_fp" || "$cached_fp" != "$fp" || -z "$cached_cred" ]]; then
+    QLOO_CREDENTIAL="$(qloo_credential_state)"
+    QLOO_VERSION=""
+    if command -v qloo >/dev/null 2>&1; then
+      QLOO_VERSION="$(qloo --version 2>/dev/null | head -1 | tr -d '[:space:]' || true)"
+    fi
+    mkdir -p "$MARKETHARNESS_HOME"
+    tmp="$QLOO_GATE_FILE.tmp.$$"
+    {
+      printf 'fingerprint=%s\n' "$fp"
+      printf 'credential=%s\n' "$QLOO_CREDENTIAL"
+      printf 'version=%s\n' "$QLOO_VERSION"
+    } > "$tmp"
+    mv "$tmp" "$QLOO_GATE_FILE"
+    QLOO_GATE_CHANGED=1
+    note="$(qloo_version_note "$QLOO_VERSION")"
+    if [[ -n "$note" ]]; then
+      printf '%smarketharness: warning:%s %s\n' "$RED" "$RESET" "$note" >&2
+    fi
   else
-    printf 'active (%s)' "$(readlink -f "$(command -v qloo)")"
+    QLOO_CREDENTIAL="$cached_cred"
+    QLOO_VERSION="$cached_ver"
+    QLOO_GATE_CHANGED=0
   fi
+
+  case "$QLOO_CREDENTIAL" in
+    missing) QLOO_TOKEN="" ;;                        # CLI absent or no credential
+    *)       QLOO_TOKEN="qloo" ;;                    # environment | harness | unknown
+  esac
+}
+
+qloo_state() {
+  local fp cached_fp cred ver note
+  fp="$(qloo_gate_fingerprint)"
+  cached_fp="$(qloo_gate_field fingerprint)"
+  cred="$(qloo_gate_field credential)"
+  ver="$(qloo_gate_field version)"
+  if [[ -z "$cred" ]]; then
+    if command -v qloo >/dev/null 2>&1; then
+      printf 'not probed yet (run: marketharness --stage-only)'
+    else
+      printf 'not installed (optional — mcp.qloo omitted from the render)'
+    fi
+    return 0
+  fi
+  if [[ "$cached_fp" != "$fp" ]]; then
+    printf 'stale (environment changed — run: marketharness --stage-only), last decision: '
+  fi
+  case "$cred" in
+    environment) printf 'active (canonical qloo mcp; credential: QLOO_API_KEY env)' ;;
+    harness)     printf 'active (canonical qloo mcp; credential: qloo setup --qloo)' ;;
+    unknown)     printf 'active (credential state unknown — the harness returns its own auth error)' ;;
+    missing)
+      if command -v qloo >/dev/null 2>&1; then
+        printf 'installed but no credential — mcp.qloo omitted (run: qloo setup --qloo, then marketharness --stage-only)'
+      else
+        printf 'not installed (optional — mcp.qloo omitted; npm install --global @qloo/qloo-harness)'
+      fi
+      ;;
+    *) printf '%s' "$cred" ;;
+  esac
+  note="$(qloo_version_note "$ver")"
+  if [[ -n "$note" ]]; then printf ' — %s' "$note"; fi
 }
 
 # --- Profile staging (first run + source-newer-than-stamp) ------------------
 # Renders profile/ into the config home with python3 (atomic writes):
 #   __MARKETHARNESS_ROOT__   -> repo whose skills/ dir is shipped
 #   __MARKETHARNESS_CONFIG__ -> rendered config dir (tui-plugins/ + themes/)
-#   __QLOO_MCP__            -> real qloo binary when credentialed, else the
-#                              whole mcp.qloo entry is removed from the JSON
+#   __QLOO_MCP__             -> the canonical `qloo` command token when the gate
+#                              allows it, else the whole mcp.qloo entry is
+#                              removed from the JSON (SPEC §7). Producer and
+#                              consumer are this same render: any surviving
+#                              placeholder aborts the launch below.
 # Never clobbers a staged file that differs from the incoming render without
 # backing it up first as <file>.bak.<timestamp>.
 stage_profile() {
@@ -104,6 +247,12 @@ stage_profile() {
   command -v python3 >/dev/null 2>&1 \
     || die "python3 not found — it is required to render the profile config"
 
+  # Qloo gate (SPEC §7): refresh the cached decision first, so a changed
+  # credential state (harness installed/configured after the last stage)
+  # forces a re-render even when the profile source itself is unchanged.
+  qloo_refresh_gate "$force"
+  if [[ "$QLOO_GATE_CHANGED" == "1" ]]; then force=1; fi
+
   local stamp="$MARKETHARNESS_HOME/.profile-stamp"
   if [[ "$force" != "1" && -f "$stamp" && -f "$OPENCODE_CONFIG" ]] \
      && [[ -z "$(find "$profile_src" -type f -newer "$stamp" -print -quit)" ]]; then
@@ -113,10 +262,12 @@ stage_profile() {
   mkdir -p "$CONFIG_DIR"
   local out
   if ! out="$(python3 - "$profile_src" "$CONFIG_DIR" "$SKILLS_ROOT" \
-                     "$(qloo_path_or_empty)" "$stamp" <<'PY'
+                     "$QLOO_TOKEN" "$stamp" <<'PY'
 import json, os, re, shutil, sys, tempfile, time
 
 profile_src, config_dir, skills_root, qloo, stamp = sys.argv[1:6]
+# `qloo` is the canonical command token (SPEC §7): the entry renders as
+# {"type":"local","command":["qloo","mcp"]} and never carries a credential.
 qloo = qloo or None
 SUBS = {
     "__MARKETHARNESS_ROOT__": skills_root,
@@ -157,8 +308,10 @@ for root, _dirs, files in os.walk(profile_src):
             except ValueError as exc:
                 errors.append(f"{rel}: not valid JSON in source ({exc})")
                 continue
-            # Credential-optional qloo wiring: without a usable qloo CLI the
-            # whole mcp.qloo entry is removed so the render stays valid.
+            # Qloo gate (SPEC §7): the mcp.qloo entry is present ONLY when the
+            # gate allowed it. mcp["qloo-docs"] (credential-free docs MCP) is
+            # never touched. Without the token the entry is removed so the
+            # render stays valid and placeholder-free.
             if PLACEHOLDER.search(json.dumps(data)):
                 if qloo:
                     data = substitute_strings(data)  # late paths, if any
@@ -377,6 +530,15 @@ export OPENCODE_CONFIG="$OPENCODE_CONFIG"
 # config sources — isolation comes from the XDG redirect + OPENCODE_CONFIG.
 unset OPENCODE_CONFIG_DIR
 mkdir -p "$XDG_DATA_HOME" "$XDG_STATE_HOME" "$XDG_CACHE_HOME"
+
+# Server-style Qloo auth (SPEC §7): the canonical mcp.qloo entry carries NO key,
+# so when QLOO_API_KEY is present it must reach the MCP child — a stdio MCP
+# server inherits this process's environment. When it is absent, the harness's
+# own private configuration (`qloo setup --qloo`) is the credential, and no
+# environment is needed.
+if [[ -n "${QLOO_API_KEY:-}" ]]; then
+  export QLOO_API_KEY
+fi
 
 # Hermetic skill set: V1 auto-scans ~/.claude/skills and ~/.agents/skills for
 # "external" skills. A distribution session must only see its OWN skills

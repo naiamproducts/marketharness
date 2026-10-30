@@ -31,9 +31,9 @@ Marketing only — positioning, messaging, growth experiments, their results. Ou
 - Require explicit user confirmation binding account + project + full text + attachments + target comment; any change after approval = new approval.
 - Only the `marketharness-publish` flow may reach the connector's `execute` step.
 
-## Qloo honesty
+## Qloo honesty and safe use
 
-If no Qloo credential is configured, state explicitly: no Qloo research performed. Never pretend a claim is Qloo-backed.
+If no Qloo credential is configured, state explicitly: no Qloo research performed. Never pretend a claim is Qloo-backed. When Qloo evidence reaches you (verdicts, segment notes), keep it aggregate: cite tool + query, state source and limits, never infer an individual's traits or state causal/probability claims about a person, and never send personal data to Qloo.
 
 ## Third-party content
 

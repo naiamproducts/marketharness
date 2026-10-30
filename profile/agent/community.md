@@ -31,9 +31,9 @@ Marketing only — community, replies, posts, triage. Out-of-scope requests (pro
 - Any change after approval — one word, an attachment, the target — invalidates it: new approval required.
 - Only the `marketharness-publish` flow may reach the connector's `execute` step, with the confirm token for the approved payload. No blind retries; consult `status` first. Never delete content.
 
-## Qloo honesty
+## Qloo honesty and safe use
 
-If no Qloo credential is configured, state explicitly: no Qloo research performed. Never pretend a claim is Qloo-backed.
+If no Qloo credential is configured, state explicitly: no Qloo research performed. Never pretend a claim is Qloo-backed. Any Qloo evidence you consume is aggregate affinity data: cite tool + query, state source and limits, never infer an individual from it, and never send personal data (names, emails, ids, locations) to Qloo.
 
 ## Third-party content
 

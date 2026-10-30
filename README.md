@@ -11,7 +11,9 @@ The team: a `marketing-lead` that receives briefs and delegates to three
 workstreams (`research`, `growth`, `community`), plus an `audience-researcher`
 subagent for Qloo-backed queries — with 8 curated skills, 6 slash commands,
 confirm-bound publishing through a structured connector contract, and an
-optional Qloo MCP that is only wired in when you actually have a credential.
+optional Qloo MCP that is wired in only when the official `qloo` harness is
+installed and a credential exists (the harness's private config or
+`QLOO_API_KEY` in the environment — never a key in any config file).
 
 ## Quick start
 
@@ -186,10 +188,120 @@ setup** — any future import would be copy-only and explicit, never automatic.
 - Symlink installation has a collision guard (a foreign `~/.local/bin/
   marketharness` is never clobbered without `--force`, which backs it up) and
   warns when another `marketharness` shadows the installed one on your `PATH`.
-- **Qloo**: with no `QLOO_API_KEY`, install prints `Qloo MCP: disabled
-  (optional)` and the render omits the `mcp.qloo` entry entirely. The entry
-  is wired in only when `QLOO_API_KEY` is set **and** the `qloo` CLI is on
-  `PATH`.
+- **Qloo**: the render carries the canonical entry
+  `{"command":"qloo","args":["mcp"]}` (as `type: local` in the V1 schema)
+  **only** when the `qloo` CLI resolves on `PATH` **and** a credential exists —
+  `QLOO_API_KEY` in the environment (server-style auth, passed through to the
+  MCP child) or the harness's own private configuration (`qloo setup --qloo`).
+  The credential is detected with `qloo setup --status --json`, which is
+  non-interactive by construction and makes no Qloo network call; if that probe
+  cannot answer, the entry is rendered anyway so the harness returns its clear
+  auth error instead of Qloo silently disappearing. Otherwise `mcp.qloo` is
+  removed and the agents state "no Qloo research performed". **No key is ever
+  written to a config file** — `./install.sh` fails loudly if a
+  credential-looking string appears in the staged config. An older harness
+  (< `0.1.26`) warns, never fails. The credential-free `qloo-docs` entry
+  (`https://docs.qloo.com/mcp`) is always rendered for documentation lookup;
+  its `execute-request` tool is `deny` in the profile config.
+
+## Hackathon submission (Qloo Hackathon Kit)
+
+Built against the official kit (<https://github.com/qloo/qloo-hackathon-kit>:
+`API_ACCESS.md`, `SAFE_USE.md`, `SUBMISSION.md`, `starter/mcp-client`). The
+mapping below is honest about what exists today versus what is pending, and it
+doubles as the Devpost entry.
+
+**Rubric angle.** Qloo results are used as *evidence inside a clear product
+flow*, never as an isolated API response: a result lands in
+`research/<topic>.md` labeled `EVIDENCE` with its tool + query + status, is
+kept separate from our own `INTERPRETATION`, is only relied on after the user
+confirms the resolved entity/tag matches, and publishing from it still has to
+pass the confirm-bound connector contract.
+
+1. **Problem statement.** Small marketing teams need audience evidence before
+   they position or run experiments, without a research budget or a data
+   team. marketharness is an isolated OpenCode V1 distribution — a
+   `marketing-lead` that delegates to `research`/`growth`/`community`, 8
+   curated skills, confirm-bound publishing — with Qloo as the on-demand
+   evidence layer behind `audience-research`.
+2. **Qloo workflow / MCP tools, and why they fit.** Canonical stdio entry
+   `{"command":"qloo","args":["mcp"]}` — no key in any config file (the
+   credential lives in the harness's private config via `qloo setup --qloo`,
+   or `QLOO_API_KEY` in the environment for server-style auth). Tool chain:
+   `qloo_capabilities` (readiness without calling Qloo) →
+   `qloo_find_tags` / `qloo_describe` → confirm matches with the user →
+   `qloo_recommend` / `qloo_rank` / `qloo_where_popular`, plus
+   `qloo_compare_audiences`, `qloo_audience_demographics`,
+   `qloo_entity_tags`, `qloo_trends`. It fits because a brief arrives as a
+   vague audience question: the first steps turn it into Qloo IDs the user
+   confirms (provenance), the last one returns the affinity evidence that
+   feeds the `EVIDENCE | INTERPRETATION | HYPOTHESIS` labels. The
+   credential-free docs server (`https://docs.qloo.com/mcp`) is registered as
+   `qloo-docs` for documentation lookup only — `execute-request` is `deny` in
+   the profile config and is never called.
+3. **Redacted request → result walkthrough, including entity/tag choices.**
+   The `audience-research` skill mandates a *Qloo provenance* block in every
+   deliverable: `tool(args) -> status, result_count`, the entity/tag choice
+   with its reason ("asked the user" when material), the source, and the
+   limits. **Pending:** no recorded, redacted walkthrough yet — the shape
+   ships in `skills/audience-research/SKILL.md`.
+4. **Demo / screenshots without credentials or personal data.** **Pending.**
+   Nothing in the repo carries a key, and the installer refuses to finish if a
+   credential-looking string appears in the staged config; screenshots must be
+   taken with the same constraint.
+5. **Setup steps from a clean environment.** See "Setup from a clean
+   environment" below (clone → `./install.sh` → `marketharness` →
+   `/marketharness-init`, plus the optional Qloo enablement).
+6. **Known limitations, including what the results do NOT establish.** See
+   "Known limitations" below.
+
+### Setup from a clean environment
+
+```bash
+git clone https://github.com/naiamproducts/marketharness.git
+cd marketharness
+./install.sh                      # preflight -> pinned runtime -> config -> CLI link
+marketharness                     # first launch prints the onboarding checklist
+# inside the TUI:
+/marketharness-init               # workspace -> company -> project -> model -> ...
+
+# optional Qloo enablement — the harness is installed by YOU, never by us:
+npm install --global @qloo/qloo-harness   # Node >= 22.19
+qloo setup --qloo                          # event key -> harness private config
+qloo setup --status                        # confirm the credential is live
+marketharness --stage-only                 # re-render: mcp.qloo appears
+
+# run a research flow:
+marketharness <workspace>/companies/<slug>/projects/<slug>
+/marketharness-research
+```
+
+Requirements: Linux with `git`, `curl`, `node`+`npm`, `python3` (the
+installer probes them and offers to install what is missing). Everything works
+without the harness; marketharness then states "No Qloo research performed"
+instead of guessing.
+
+### Known limitations
+
+- **What Qloo results do NOT establish:** aggregate cultural/taste affinities
+  for a population and time window — not individual behavior, not causal
+  effects, not probabilities about a person, and never evidence for a
+  high-impact decision (housing, employment, credit, insurance).
+- No personal data is ever sent to Qloo: queries are aggregate product
+  concepts and public cultural signals, and results are presented with their
+  source and limits.
+- The first connector is the local mock (`connectors/mock-social/`) — no real
+  platform is touched today; live publishing is future work behind the same
+  contract.
+- Model availability depends on your own provider configuration — the
+  distribution ships no credentials and reads none of yours.
+- Qloo wiring is optional and gated: without the `qloo` CLI or a credential,
+  `mcp.qloo` is absent from the rendered config and the agents say so.
+- Event quota, rate limits, and credential expiry belong to the hackathon
+  organizers; the skill mandates the smallest request that answers the
+  question and bounded retries.
+- **Pending artifacts:** demo screenshots and the redacted request→result
+  walkthrough.
 
 ## Acceptance checklist
 
@@ -221,8 +333,12 @@ honest: **automated** = proven by the shipped test smoke run of this build;
 | 16 | Mandatory prohibitions enforced by shared config (`delete: deny`, `rm -rf *`/`sudo *`/`git push *` deny) | **Automated**: `marketharness debug config` output contains all four deny records |
 
 Static smoke for this build: `bash -n` on `install.sh` + `bin/marketharness`,
-`python3 -m json.tool` on every source and rendered JSON, zero placeholders in
-the staged config, qloo render verified with and without `QLOO_API_KEY`.
+`python3 -m json.tool` on every source and rendered JSON, zero placeholders
+and zero credential-looking strings in the staged config, and the qloo render
+verified in four states — CLI absent (entry omitted), CLI present with a
+harness credential (rendered as `{"command":"qloo","args":["mcp"]}`),
+`QLOO_API_KEY` in the environment (rendered, env passthrough only), CLI
+present without a credential (omitted).
 
 ## License
 

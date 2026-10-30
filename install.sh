@@ -10,7 +10,7 @@
 #      cloning MARKETHARNESS_REPO_URL)
 #   3. the rendered profile config -> ~/.config/marketharness/opencode
 #      (staging runs through the launcher's --stage-only mode so install and
-#      first run share ONE render implementation: placeholders, qloo wiring,
+#      first run share ONE render implementation: placeholders, the Qloo gate,
 #      .bak.<timestamp> backups of edited staged files)
 #   4. the `marketharness` symlink -> ~/.local/bin/marketharness (collision
 #      guard, PATH-shadow warning)
@@ -253,9 +253,9 @@ acquire_source() {
 
 # --- 4. Rendered profile config (shared with the launcher) ------------------
 # Staging runs the LAUNCHER's --stage-only mode: one render implementation
-# everywhere (placeholder substitution, credential-optional qloo wiring,
-# atomic writes, .bak.<timestamp> backups of edited staged files, loud
-# placeholder check).
+# everywhere (placeholder substitution, the Qloo gate — canonical `qloo mcp`
+# entry, no credential in any config file, atomic writes, .bak.<timestamp>
+# backups of edited staged files, loud placeholder + credential checks).
 stage_config() {
   printf '\n%s[3/4]%s profile config -> %s\n' "$INDIGO" "$RESET" "$CONFIG_DIR"
   bash "$CLI_TARGET" --stage-only || fail "profile staging failed (see errors above)"
@@ -271,6 +271,16 @@ placeholder_check() {
     || fail "placeholder(s) not substituted in the staged config:
 $(printf '%s\n' "$leftovers")
 Re-run ./install.sh --stage-only via the launcher (marketharness --stage-only)."
+
+  # Official Qloo kit rule: never a credential in a client configuration file,
+  # ever. The credential lives in the harness's private config or in the
+  # environment of the process that starts `qloo mcp` — never in staged JSON.
+  local leaked
+  leaked="$(grep -RIl 'API_KEY\|apiKey' "$CONFIG_DIR" 2>/dev/null || true)"
+  [[ -z "$leaked" ]] \
+    || fail "credential-looking string(s) in the staged config — refusing:
+$(printf '%s\n' "$leaked")
+The rendered config must never carry a Qloo key (official Qloo kit rule)."
 }
 
 # --- 5. CLI symlink ---------------------------------------------------------
@@ -329,15 +339,141 @@ link_cli() {
   esac
 }
 
-# --- Optional Qloo wiring note ----------------------------------------------
-qloo_note() {
-  if [[ -z "${QLOO_API_KEY:-}" ]]; then
-    info "Qloo MCP: disabled (optional)"
-  elif ! command -v qloo >/dev/null 2>&1; then
-    info "Qloo MCP: not wired — QLOO_API_KEY is set but the qloo CLI is not on PATH (mcp.qloo was removed from the render; install the qloo CLI to enable)"
+# --- Optional Qloo wiring (official Qloo Hackathon Kit) ----------------------
+# marketharness NEVER installs the harness globally and NEVER writes a key:
+# the credential lives in the harness's own private config (`qloo setup
+# --qloo`) or in QLOO_API_KEY on the environment (server-style auth). The gate
+# decision is made by the launcher's staging step and cached in .qloo-gate; a
+# stale/absent cache is refreshed by `marketharness --stage-only`.
+qloo_gate_field() {
+  local key="$1" line gate="$CONFIG_HOME/.qloo-gate"
+  [[ -f "$gate" ]] || return 0
+  while IFS= read -r line; do
+    case "$line" in
+      "$key="*) printf '%s' "${line#*=}"; return 0 ;;
+    esac
+  done < "$gate"
+}
+
+# Optional readiness check through the `qloo_capabilities` MCP tool: it reports
+# readiness WITHOUT calling Qloo (no network, no credential use), so it only
+# depends on the harness being runnable. Bounded by a timeout, attempted only
+# when the CLI is on PATH, and NEVER a hard failure.
+qloo_capabilities_check() {
+  command -v qloo >/dev/null 2>&1 || return 0
+  command -v python3 >/dev/null 2>&1 || return 0
+  local runner=(python3 -) out
+  if command -v timeout >/dev/null 2>&1; then runner=(timeout 40 python3 -); fi
+  out="$("${runner[@]}" 2>/dev/null <<'PY' || true
+import json
+import subprocess
+import sys
+
+
+def read_reply(stream, want_id):
+    for line in stream:
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            message = json.loads(line)
+        except ValueError:
+            continue
+        if message.get("id") == want_id:
+            return message
+    return None
+
+
+proc = subprocess.Popen(
+    ["qloo", "mcp"],
+    stdin=subprocess.PIPE,
+    stdout=subprocess.PIPE,
+    stderr=subprocess.DEVNULL,
+    text=True,
+    bufsize=1,
+)
+try:
+    def send(payload):
+        proc.stdin.write(json.dumps(payload) + "\n")
+        proc.stdin.flush()
+
+    send({"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {
+        "protocolVersion": "2025-06-18",
+        "capabilities": {},
+        "clientInfo": {"name": "marketharness-installer", "version": "0.1.0"},
+    }})
+    init = read_reply(proc.stdout, 1)
+    if not init:
+        print("qloo mcp did not answer initialize")
+        sys.exit(0)
+    server = (init.get("result") or {}).get("serverInfo") or {}
+    send({"jsonrpc": "2.0", "method": "notifications/initialized"})
+    send({"jsonrpc": "2.0", "id": 2, "method": "tools/call",
+          "params": {"name": "qloo_capabilities", "arguments": {}}})
+    capability = read_reply(proc.stdout, 2)
+    if capability is None:
+        print("qloo_capabilities did not answer")
+    elif capability.get("error"):
+        print("qloo_capabilities error: %s"
+              % capability["error"].get("message", "unknown"))
+    else:
+        text = "".join(block.get("text", "")
+                       for block in (capability.get("result") or {}).get("content", [])
+                       if block.get("type") == "text")
+        try:
+            contract = json.loads(text).get("contract_version", "unknown")
+        except ValueError:
+            contract = "unknown"
+        print("qloo_capabilities answered (harness %s, contract %s)"
+              % (server.get("version", "unknown"), contract))
+finally:
+    try:
+        proc.stdin.close()
+    except Exception:
+        pass
+    try:
+        proc.wait(timeout=5)
+    except Exception:
+        proc.kill()
+PY
+)"
+  if [[ -n "$out" ]]; then
+    ok "Qloo readiness: $out"
   else
-    ok "Qloo MCP: active ($(readlink -f "$(command -v qloo)"))"
+    info "qloo_capabilities probe unavailable (harness unresponsive or timed out — never a failure; no network or credential is involved)"
   fi
+}
+
+qloo_note() {
+  printf '\n%sQloo (optional — official @qloo/qloo-harness)%s\n' "$INDIGO" "$RESET"
+
+  if ! command -v qloo >/dev/null 2>&1; then
+    info "qloo CLI not found — mcp.qloo omitted from the render (Qloo research stays optional)"
+    cat <<'EOF'
+  marketharness never installs the harness for you (your npm prefix, your
+  Node). To enable Qloo, run the official steps yourself:
+
+    npm install --global @qloo/qloo-harness    # requires Node >= 22.19
+    qloo setup --qloo                          # key -> the harness's PRIVATE
+                                                # config (never a config file,
+                                                # never a repo, never a demo)
+    qloo setup --status                        # confirm: "Qloo data: live"
+    marketharness --stage-only                 # re-render with mcp.qloo
+EOF
+    return 0
+  fi
+
+  # The version warning is printed by the launcher during staging above
+  # (single source of truth: warn, never fail, on harness < 0.1.26).
+  case "$(qloo_gate_field credential)" in
+    environment) ok "Qloo MCP: wired (canonical qloo mcp; credential: QLOO_API_KEY env)" ;;
+    harness)     ok "Qloo MCP: wired (canonical qloo mcp; credential: qloo setup --qloo)" ;;
+    unknown)     info "Qloo MCP: rendered (credential state unknown — the harness returns its own auth error)" ;;
+    missing)     info "Qloo MCP: no credential — mcp.qloo omitted (run: qloo setup --qloo, then marketharness --stage-only)" ;;
+    "")          info "Qloo MCP: gate not staged yet (run: marketharness --stage-only)" ;;
+    *)           info "Qloo MCP: unexpected gate state (run: marketharness --stage-only to re-check)" ;;
+  esac
+  qloo_capabilities_check
 }
 
 # --- Sanity ------------------------------------------------------------------

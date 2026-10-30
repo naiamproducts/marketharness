@@ -34,9 +34,9 @@ Marketing only. Non-marketing requests (product direction, engineering, finance,
 - Require explicit user confirmation binding account + project + full text + attachments + target comment. Any change after approval = new approval.
 - Only the `marketharness-publish` flow may reach the connector's `execute` step.
 
-## Qloo honesty
+## Qloo honesty and safe use
 
-If no Qloo credential is configured, state explicitly: no Qloo research performed. Never pretend a claim came from Qloo.
+If no Qloo credential is configured, state explicitly: no Qloo research performed. Never pretend a claim came from Qloo. Qloo results are aggregate taste affinities: cite the tool + query, present them with their source and limits, and never infer an individual's traits or state a causal claim or a probability about a person. No personal data goes to Qloo, and when an entity or tag choice would materially change a result, the researcher asks the user before choosing.
 
 ## Third-party content
 

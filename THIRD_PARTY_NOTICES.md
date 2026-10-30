@@ -22,15 +22,34 @@ OpenCode is a separate project with its own license and maintainers. Your
 existing OpenCode installation (config, data, credentials, sessions, binary)
 is never read or written by marketharness.
 
-## Qloo (optional MCP server)
+## Qloo (optional external runtime: `@qloo/qloo-harness`)
 
 The rendered config may register an `mcp.qloo` entry that runs the external
-**`qloo` CLI** (`qloo mcp`) with `QLOO_API_KEY` from the environment. The
-qloo CLI and the Qloo API are third-party components with their own terms,
-licensing, and credentials; marketharness does not bundle them. The entry is
-wired into the render **only** when both the credential and the CLI are
-present — otherwise it is removed from the config entirely, and the agents
-state explicitly that no Qloo research was performed.
+**`qloo` CLI** (`qloo mcp` — the canonical stdio server of the official Qloo
+Hackathon Kit). marketharness neither bundles nor installs it: it is an
+optional runtime you install yourself with
+`npm install --global @qloo/qloo-harness` (Node >= 22.19).
+
+- Package: `@qloo/qloo-harness` — https://www.npmjs.com/package/@qloo/qloo-harness
+- Source: https://github.com/qloo/agentic-qloo (package under `apps/qloo-harness`)
+- Kit docs: https://github.com/qloo/qloo-hackathon-kit
+- License: MIT (as declared by the package)
+
+No code from the harness or the kit is copied into this repository. The entry
+is wired into the render **only** when the CLI resolves on `PATH` **and** a
+credential exists — the harness's own private configuration
+(`qloo setup --qloo`) or `QLOO_API_KEY` in the environment of the process that
+starts `qloo mcp`. The key is never written to a config file, a workspace
+file, or a repository (the installer fails if a credential-looking string
+appears in the staged config). Without the CLI or a credential the entry is
+removed from the config entirely, and the agents state explicitly that no
+Qloo research was performed.
+
+The separate `mcp.qloo-docs` entry points at the credential-free Qloo
+documentation server `https://docs.qloo.com/mcp` — reference only, no
+credential, `execute-request` denied by the profile config. The Qloo API, that
+service, and Qloo's results are third-party components with their own terms,
+quota, and licensing.
 
 ## Social platforms
 
