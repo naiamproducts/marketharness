@@ -1,0 +1,20 @@
+# Example social account — placeholder, safe to commit.
+# Real accounts follow this same shape. NEVER put tokens, passwords, or
+# API keys here: `auth_ref` points at connector-private storage only.
+id: example-linkedin
+platform: linkedin
+handle: "@your-company"  # replace with the real handle
+scopes:
+  - read
+  - write_posts
+  - write_comments
+# Where the connector finds the credential. Workspace files hold the REFERENCE,
+# never the secret itself.
+auth_ref: connector-private://mock-social/example-linkedin
+# Projects authorized to publish through this account. One institutional
+# account may serve campaigns of multiple projects: add each authorized
+# project here AND list this account under the project's authorized_accounts
+# (project.yaml) — both sides must agree before the connector prepares an
+# action (SPEC §5, acceptance #7).
+allowed_projects:
+  - {{project}}

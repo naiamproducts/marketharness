@@ -1,0 +1,18 @@
+# Project record — ids and relations live in YAML; knowledge lives in Markdown.
+id: {{project}}
+company: {{company}}
+status: active  # active | paused | done
+created: ""  # fill with an ISO date when registering the project
+
+# Accounts this project is authorized to publish through. The connector
+# refuses to prepare an action unless the named account's
+# companies/{{company}}/accounts/<account>.yaml ALSO lists this project in
+# its allowed_projects — both sides must agree (SPEC §5).
+#
+# One institutional account across multiple projects (acceptance #7):
+# add the SAME account id to each project's authorized_accounts here, and
+# list every one of those projects in the account file's allowed_projects.
+# Each project keeps its own deliverables (drafts, reports, experiments)
+# fully separate — only the publishing destination is shared.
+authorized_accounts:
+  - example-linkedin

@@ -1,0 +1,17 @@
+# Connector runtime state (connector-private; never committed)
+.connector-log.jsonl
+.connector-pending.json
+
+# Backups created by install/update/staging
+*.bak.*
+
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# OS junk
+.DS_Store
+
+# Secrets
+.env

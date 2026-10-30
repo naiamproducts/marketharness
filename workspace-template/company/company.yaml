@@ -1,0 +1,12 @@
+# Company record — ids and relations live in YAML; knowledge lives in Markdown.
+id: {{company}}
+display_name: "{{company}}"  # replace with the real company display name
+policies:
+  # Policy files are read on demand by path; referenced here so agents can
+  # resolve them without globbing.
+  publishing: policies/publishing.md
+  community: policies/community.md
+  escalation: policies/escalation.md
+brand:
+  identity: brand/identity.md
+  voice: brand/voice.md

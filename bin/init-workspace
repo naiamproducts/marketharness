@@ -1,0 +1,160 @@
+#!/usr/bin/env python3
+"""init-workspace — scaffold the marketagents workspace tree (SPEC §5).
+
+Renders files from workspace-template/ into a target directory with
+{{workspace_id}} / {{company}} / {{project}} substitution.
+
+Idempotent: existing files are kept (printed as `kept`) unless --force
+overwrites them (printed as `created`). Empty deliverable dirs are always
+ensured, with a .gitkeep so the tree survives git.
+
+Stdlib only. Exit codes: 0 ok, 1 error.
+"""
+import argparse
+import os
+import re
+import sys
+
+TEMPLATE_ROOT = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "workspace-template"
+)
+
+# Template dir (relative to TEMPLATE_ROOT) -> target dir inside workspace.
+# company/ renders into companies/<company>/, project/ into its project dir.
+MAPPING = [
+    ("workspace.yaml", ""),           # file at workspace root
+    ("company", "companies/{company}"),
+    ("project", "companies/{company}/projects/{project}"),
+]
+
+# Empty deliverable dirs per SPEC §5, created with .gitkeep.
+PROJECT_EMPTY_DIRS = ["research", "strategy", "experiments", "campaigns", "reports"]
+
+SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9_-]*$")
+
+
+def parse_args(argv=None):
+    p = argparse.ArgumentParser(
+        prog="init-workspace",
+        description="Scaffold the marketagents workspace tree (SPEC §5) from "
+                    "workspace-template/.",
+        epilog="Example: init-workspace ~/workspaces/acme-ws "
+               "--company acme --project launch_q3",
+    )
+    p.add_argument("dir", help="Target directory (created if missing)")
+    p.add_argument("--company", default="example_company",
+                   help="Company slug (snake_case); default: %(default)s")
+    p.add_argument("--project", default="example_project",
+                   help="Project slug (snake_case); default: %(default)s")
+    p.add_argument("--workspace-id", default=None,
+                   help="Workspace id; default: target directory basename")
+    p.add_argument("--force", action="store_true",
+                   help="Overwrite existing files (default: keep them)")
+    return p.parse_args(argv)
+
+
+def die(msg):
+    print(f"error: {msg}", file=sys.stderr)
+    sys.exit(1)
+
+
+def render(text, subs):
+    for key, value in subs.items():
+        text = text.replace("{{%s}}" % key, value)
+    return text
+
+
+def scaffold_file(src, dst, subs, force):
+    """Render src -> dst. Returns 'created' or 'kept'."""
+    if os.path.exists(dst) and not force:
+        return "kept"
+    os.makedirs(os.path.dirname(dst), exist_ok=True)
+    with open(src, encoding="utf-8") as f:
+        content = render(f.read(), subs)
+    with open(dst, "w", encoding="utf-8") as f:
+        f.write(content)
+    return "created"
+
+
+def scaffold_tree(src_dir, dst_dir, subs, force, report):
+    for entry in sorted(os.listdir(src_dir)):
+        src = os.path.join(src_dir, entry)
+        rel_entry = render(entry, subs)
+        dst = os.path.join(dst_dir, rel_entry)
+        if os.path.isdir(src):
+            os.makedirs(dst, exist_ok=True)
+            scaffold_tree(src, dst, subs, force, report)
+        else:
+            rel = os.path.relpath(dst, subs["_root"])
+            report.append((rel, scaffold_file(src, dst, subs, force)))
+
+
+def main(argv=None):
+    args = parse_args(argv)
+
+    if not SLUG_RE.match(args.company):
+        die(f"--company '{args.company}' is not a snake_case slug "
+            "(lowercase letters, digits, _ or -)")
+    if not SLUG_RE.match(args.project):
+        die(f"--project '{args.project}' is not a snake_case slug "
+            "(lowercase letters, digits, _ or -)")
+    if not os.path.isdir(TEMPLATE_ROOT):
+        die(f"template root not found: {TEMPLATE_ROOT}")
+
+    root = os.path.abspath(args.dir)
+    workspace_id = args.workspace_id or os.path.basename(root)
+    if not SLUG_RE.match(workspace_id):
+        die(f"workspace id '{workspace_id}' (from --workspace-id or directory "
+            "name) is not a snake_case slug; pass --workspace-id")
+
+    subs = {"workspace_id": workspace_id, "company": args.company,
+            "project": args.project, "_root": root}
+
+    os.makedirs(root, exist_ok=True)
+    report = []
+    for src_rel, dst_rel in MAPPING:
+        src = os.path.join(TEMPLATE_ROOT, src_rel)
+        if not os.path.exists(src):
+            die(f"template entry missing: {src}")
+        dst_dir = os.path.join(root, dst_rel.format(**subs)) if dst_rel else root
+        if os.path.isdir(src):
+            os.makedirs(dst_dir, exist_ok=True)
+            scaffold_tree(src, dst_dir, subs, args.force, report)
+        else:
+            dst = os.path.join(dst_dir, render(os.path.basename(src), subs))
+            rel = os.path.relpath(dst, root)
+            report.append((rel, scaffold_file(src, dst, subs, args.force)))
+
+    # Empty deliverable dirs (SPEC §5) with .gitkeep so git keeps them.
+    project_dir = os.path.join(
+        root, "companies", args.company, "projects", args.project)
+    for d in PROJECT_EMPTY_DIRS:
+        full = os.path.join(project_dir, d)
+        os.makedirs(full, exist_ok=True)
+        keep = os.path.join(full, ".gitkeep")
+        if not os.path.exists(keep):
+            with open(keep, "w", encoding="utf-8") as f:
+                f.write("")
+            report.append((os.path.relpath(keep, root), "created"))
+
+    created = kept = 0
+    for rel, action in report:
+        print(f"{action:<7} {rel}")
+        if action == "created":
+            created += 1
+        else:
+            kept += 1
+    print(f"done: {created} created, {kept} kept — workspace at {root}")
+    print()
+    print("Next steps:")
+    print(f"  1. Fill in company display name: companies/{args.company}/company.yaml")
+    print(f"  2. Fill in brand/identity.md and brand/voice.md, and the policies "
+          f"if the starter rules don't fit.")
+    print(f"  3. Open the project with: marketagents "
+          f"{os.path.join(root, 'companies', args.company, 'projects', args.project)}")
+    print(f"  4. Run the first-run onboarding command: marketagents-init")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

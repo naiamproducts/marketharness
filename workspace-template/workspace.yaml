@@ -1,0 +1,6 @@
+# marketagents workspace manifest
+# Template variables are substituted by bin/init-workspace at scaffold time.
+id: {{workspace_id}}
+version: 1
+companies:
+  - {{company}}

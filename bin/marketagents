@@ -1,0 +1,414 @@
+#!/usr/bin/env bash
+# marketagents — hermetic launcher for the marketagents V1 distribution.
+#
+# marketagents is a marketing-team distribution of OpenCode V1 ONLY: it ships
+# its own pinned runtime (opencode-ai@1.19.3 in its own npm prefix), its own
+# XDG dirs under ~/.config/marketagents, and its own rendered profile config.
+# It NEVER reads or writes an existing OpenCode install (~/.config/opencode,
+# ~/.local/share/opencode*, ~/.opencode, credentials, sessions) and NEVER
+# execs a system `opencode` binary — the only OpenCode binary it runs is the
+# pinned runtime under its install root.
+#
+# Usage:
+#   marketagents [dir]         open the V1 TUI (optionally in a workspace or
+#                              project dir — V1 discovers project files from cwd)
+#   marketagents init-workspace <dir> [--company slug] [--project slug]
+#                              scaffold the workspace tree (SPEC §5)
+#   marketagents update        re-run the installer in --update mode
+#   marketagents help          show this help
+#   marketagents --version     product version + runtime pin + config paths +
+#                              qloo state
+#   marketagents --stage-only  force a re-render of the profile config into
+#                              the config home (used by install.sh)
+#   anything else              passed through verbatim to the pinned runtime
+#                              (agent list, models, debug config, debug skill,
+#                              run, serve, session, ...)
+#
+# Environment:
+#   MARKETAGENTS_HOME  config home (default: $HOME/.config/marketagents)
+#   MARKETAGENTS_ROOT  install root — runtime + installed repo copy
+#                      (default: $HOME/.local/share/marketagents)
+#   QLOO_API_KEY       enables the mcp.qloo entry in the rendered config, but
+#                      only when the `qloo` CLI is also on PATH; otherwise the
+#                      whole mcp.qloo entry is REMOVED from the render
+set -euo pipefail
+
+# --- Locate this script (through symlinks) ---------------------------------
+SOURCE="${BASH_SOURCE[0]}"
+while [[ -L "$SOURCE" ]]; do
+  DIR="$(cd -P "$(dirname "$SOURCE")" && pwd)"
+  SOURCE="$(readlink "$SOURCE")"
+  [[ "$SOURCE" != /* ]] && SOURCE="$DIR/$SOURCE"
+done
+BIN_DIR="$(cd -P "$(dirname "$SOURCE")" && pwd)"
+REPO_ROOT="$(cd "$BIN_DIR/.." && pwd)"   # launcher's own repo: profile/, skills/, install.sh
+
+# --- Product / runtime identity --------------------------------------------
+PRODUCT_VERSION="0.1.0"
+OPENCODE_PIN="1.19.3"
+
+# --- Hermetic layout (SPEC §1) ---------------------------------------------
+MARKETAGENTS_HOME="${MARKETAGENTS_HOME:-$HOME/.config/marketagents}"
+MARKETAGENTS_ROOT="${MARKETAGENTS_ROOT:-$HOME/.local/share/marketagents}"
+CONFIG_DIR="$MARKETAGENTS_HOME/opencode"                  # XDG_CONFIG_HOME/opencode
+OPENCODE_CONFIG="$CONFIG_DIR/opencode.json"
+RUNTIME_BIN="$MARKETAGENTS_ROOT/opencode/node_modules/.bin/opencode"
+
+# Where the rendered skills path points: the repo that owns THIS launcher when
+# it carries a skills/ tree (installed copy or dev checkout), else the install root.
+if [[ -d "$REPO_ROOT/skills" ]]; then
+  SKILLS_ROOT="$REPO_ROOT"
+else
+  SKILLS_ROOT="$MARKETAGENTS_ROOT"
+fi
+
+# --- Presentation -----------------------------------------------------------
+INDIGO=$'\033[38;5;105m'
+MUTED=$'\033[38;5;245m'
+BOLD=$'\033[1m'
+RED=$'\033[38;5;203m'
+RESET=$'\033[0m'
+
+die() { printf '%smarketagents:%s %s\n' "$RED" "$RESET" "$*" >&2; exit 1; }
+
+qloo_path_or_empty() {
+  # The mcp.qloo entry is rendered in ONLY with a credential AND the qloo CLI.
+  if [[ -n "${QLOO_API_KEY:-}" ]] && command -v qloo >/dev/null 2>&1; then
+    readlink -f "$(command -v qloo)"
+  fi
+}
+
+qloo_state() {
+  if [[ -z "${QLOO_API_KEY:-}" ]]; then
+    printf 'disabled (optional — no QLOO_API_KEY in the environment)'
+  elif ! command -v qloo >/dev/null 2>&1; then
+    printf 'not active (QLOO_API_KEY is set but the qloo CLI is not on PATH; mcp.qloo removed from the render)'
+  else
+    printf 'active (%s)' "$(readlink -f "$(command -v qloo)")"
+  fi
+}
+
+# --- Profile staging (first run + source-newer-than-stamp) ------------------
+# Renders profile/ into the config home with python3 (atomic writes):
+#   __MARKETAGENTS_ROOT__   -> repo whose skills/ dir is shipped
+#   __MARKETAGENTS_CONFIG__ -> rendered config dir (tui-plugins/ + themes/)
+#   __QLOO_MCP__            -> real qloo binary when credentialed, else the
+#                              whole mcp.qloo entry is removed from the JSON
+# Never clobbers a staged file that differs from the incoming render without
+# backing it up first as <file>.bak.<timestamp>.
+stage_profile() {
+  local force="${1:-0}"   # 1 = --stage-only (ignore the freshness stamp)
+  local profile_src="$REPO_ROOT/profile"
+  [[ -f "$profile_src/opencode.json" ]] \
+    || die "no profile source at $profile_src (re-install: bash $REPO_ROOT/install.sh)"
+  command -v python3 >/dev/null 2>&1 \
+    || die "python3 not found — it is required to render the profile config"
+
+  local stamp="$MARKETAGENTS_HOME/.profile-stamp"
+  if [[ "$force" != "1" && -f "$stamp" && -f "$OPENCODE_CONFIG" ]] \
+     && [[ -z "$(find "$profile_src" -type f -newer "$stamp" -print -quit)" ]]; then
+    return 0   # staged copy is current
+  fi
+
+  mkdir -p "$CONFIG_DIR"
+  local out
+  if ! out="$(python3 - "$profile_src" "$CONFIG_DIR" "$SKILLS_ROOT" \
+                     "$(qloo_path_or_empty)" "$stamp" <<'PY'
+import json, os, re, shutil, sys, tempfile, time
+
+profile_src, config_dir, skills_root, qloo, stamp = sys.argv[1:6]
+qloo = qloo or None
+SUBS = {
+    "__MARKETAGENTS_ROOT__": skills_root,
+    "__MARKETAGENTS_CONFIG__": config_dir,
+}
+PLACEHOLDER = re.compile(r"__[A-Z][A-Z0-9_]*__")
+ts = time.strftime("%Y%m%d%H%M%S")
+first_run = 0 if os.path.exists(stamp) else 1
+
+
+def substitute_strings(node):
+    if isinstance(node, dict):
+        return {k: substitute_strings(v) for k, v in node.items()}
+    if isinstance(node, list):
+        return [substitute_strings(v) for v in node]
+    if isinstance(node, str):
+        for key, val in SUBS.items():
+            node = node.replace(key, val)
+        if "__QLOO_MCP__" in node:
+            if qloo:
+                node = node.replace("__QLOO_MCP__", qloo)
+        return node
+    return node
+
+
+changed = backups = removed_qloo = 0
+errors = []
+for root, _dirs, files in os.walk(profile_src):
+    for name in sorted(files):
+        src = os.path.join(root, name)
+        rel = os.path.relpath(src, profile_src)
+        with open(src, encoding="utf-8") as f:
+            raw = f.read()
+
+        if name.endswith(".json"):
+            try:
+                data = substitute_strings(json.loads(raw))
+            except ValueError as exc:
+                errors.append(f"{rel}: not valid JSON in source ({exc})")
+                continue
+            # Credential-optional qloo wiring: without a usable qloo CLI the
+            # whole mcp.qloo entry is removed so the render stays valid.
+            if PLACEHOLDER.search(json.dumps(data)):
+                if qloo:
+                    data = substitute_strings(data)  # late paths, if any
+                mcp = data.get("mcp")
+                if isinstance(mcp, dict) and "qloo" in mcp and not qloo:
+                    del mcp["qloo"]
+                    removed_qloo = 1
+            out = json.dumps(data, indent=2, ensure_ascii=False) + "\n"
+        else:
+            out = raw
+            for key, val in SUBS.items():
+                out = out.replace(key, val)
+            if "__QLOO_MCP__" in out and qloo:
+                out = out.replace("__QLOO_MCP__", qloo)
+
+        leftover = sorted(set(PLACEHOLDER.findall(out)))
+        if leftover:
+            errors.append(f"{rel}: placeholder(s) not substituted: {', '.join(leftover)}")
+            continue
+
+        dst = os.path.join(config_dir, rel)
+        os.makedirs(os.path.dirname(dst), exist_ok=True)
+        existing = None
+        if os.path.exists(dst):
+            with open(dst, encoding="utf-8") as f:
+                existing = f.read()
+        if existing == out:
+            continue
+        if existing is not None:
+            # Local edit or older render: never clobber without a backup.
+            shutil.copy2(dst, dst + ".bak." + ts)
+            backups += 1
+            print(f"backed up: {dst}.bak.{ts}", file=sys.stderr)
+        fd, tmp = tempfile.mkstemp(dir=os.path.dirname(dst), prefix=".stage-")
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
+                f.write(out)
+            os.replace(tmp, dst)
+        finally:
+            if os.path.exists(tmp):
+                os.unlink(tmp)
+        changed += 1
+
+if errors:
+    for e in errors:
+        print(f"staging error: {e}", file=sys.stderr)
+    sys.exit(1)
+
+print(f"first={first_run} changed={changed} backups={backups} qloo_removed={removed_qloo}")
+PY
+  )"; then
+    die "profile staging failed (see errors above); refusing to launch with a broken config"
+  fi
+
+  touch "$stamp"
+
+  local stage_first=0 stage_changed=0 stage_backups=0
+  [[ "$out" =~ first=([01]) ]] && stage_first="${BASH_REMATCH[1]}"
+  [[ "$out" =~ changed=([0-9]+) ]] && stage_changed="${BASH_REMATCH[1]}"
+  [[ "$out" =~ backups=([0-9]+) ]] && stage_backups="${BASH_REMATCH[1]}"
+  if [[ "$stage_changed" != "0" ]]; then
+    printf '%smarketagents:%s profile staged into %s (%s file(s)%s)\n' \
+      "$INDIGO" "$RESET" "$CONFIG_DIR" "$stage_changed" \
+      "$([[ "$stage_backups" != "0" ]] && printf ', %s backup(s)' "$stage_backups")"
+  fi
+
+  # Fail loudly if ANY placeholder survived the render — a leftover would
+  # silently break skills discovery, the theme/logo plugin, or qloo wiring.
+  local leftovers
+  leftovers="$(grep -RIl '__MARKETAGENTS_ROOT__\|__MARKETAGENTS_CONFIG__\|__QLOO_MCP__' \
+                 "$CONFIG_DIR" 2>/dev/null || true)"
+  [[ -z "$leftovers" ]] \
+    || die "placeholder(s) survived staging in: $(printf '%s ' $leftovers)
+Re-stage with: marketagents --stage-only (or re-run ./install.sh)"
+
+  STAGE_FIRST="$stage_first"
+}
+
+# --- First-launch next steps (SPEC §9) --------------------------------------
+maybe_first_launch_banner() {
+  local marker="$MARKETAGENTS_HOME/.first-launch-done"
+  [[ -f "$marker" ]] && return 0
+  mkdir -p "$MARKETAGENTS_HOME"
+  cat <<EOF
+
+${INDIGO}marketagents first run${RESET} (OpenCode V1 $OPENCODE_PIN, isolated)
+
+${BOLD}Next steps${RESET}
+  1. Scaffold a workspace (skip if you were given one):
+       ${BOLD}marketagents init-workspace ~/workspaces/<name> --company <slug> --project <slug>${RESET}
+  2. Open it (workspace or project dir):
+       ${BOLD}marketagents ~/workspaces/<name>/companies/<slug>/projects/<slug>${RESET}
+  3. Run the onboarding command inside the TUI:
+       ${BOLD}/marketagents-init${RESET}
+     workspace -> company -> project -> model -> optional Qloo -> optional social -> first brief.
+  4. Pick an available model when asked (${BOLD}marketagents models${RESET}). If no usable model
+     is available, the onboarding flow offers provider setup — your existing
+     OpenCode credentials are NEVER read; any import would be copy-only and
+     explicit.
+
+${MUTED}Your OpenCode install (~/.config/opencode, ~/.local/share/opencode) is never
+touched: this launcher only uses its own runtime and XDG dirs.${RESET}
+
+EOF
+  touch "$marker"
+}
+
+# --- Help / version ---------------------------------------------------------
+usage() {
+  cat <<EOF
+${INDIGO}marketagents${RESET} — marketing-team distribution of OpenCode V1 $OPENCODE_PIN (isolated)
+
+${BOLD}Usage${RESET}
+  marketagents [dir]           open the V1 TUI; an existing directory as the
+                               first argument opens that workspace/project dir
+                               (the session runs with the dir as cwd)
+  marketagents init-workspace <dir> [--company slug] [--project slug]
+                               scaffold the workspace tree (SPEC §5)
+  marketagents update          re-run the installer in --update mode (source
+                               re-copy or git fast-forward; edited staged config
+                               is backed up first as <file>.bak.<timestamp>)
+  marketagents help            show this help
+  marketagents --version       product version, runtime pin, config paths,
+                               qloo state
+  marketagents --stage-only    force re-render of the profile config
+
+${BOLD}Team${RESET}
+  marketing-lead (primary, default) -> research / growth / community,
+  plus the audience-researcher subagent (Qloo-backed specialist)
+
+${BOLD}Commands (in the TUI)${RESET}
+  /marketagents-init  /marketagents-brief  /marketagents-research
+  /marketagents-experiment  /marketagents-publish  /marketagents-report
+  First run: start with ${BOLD}/marketagents-init${RESET}.
+
+${BOLD}OpenCode V1 flags and subcommands (passed through)${RESET}
+  -c/--continue  -s/--session  -m/--model  --agent  --prompt
+  agent list, models, debug config, debug skill, run, serve, session, auth,
+  stats, export, ... are forwarded to the pinned runtime unchanged. Any
+  argument marketagents does not recognize is passed through verbatim.
+
+${MUTED}Config home : $MARKETAGENTS_HOME   (XDG_CONFIG_HOME; rendered profile lives in $CONFIG_DIR)
+Install root : $MARKETAGENTS_ROOT   (pinned runtime + installed repo)
+Runtime      : $RUNTIME_BIN
+Your existing OpenCode install (~/.config/opencode, ~/.local/share/opencode,
+the opencode command) is never read or written.${RESET}
+EOF
+}
+
+version_block() {
+  local installed="not installed"
+  if [[ -x "$RUNTIME_BIN" ]]; then
+    installed="$("$RUNTIME_BIN" --version 2>/dev/null || printf 'unknown')"
+  fi
+  printf '%smarketagents%s %s\n' "$INDIGO" "$RESET" "$PRODUCT_VERSION"
+  printf '%sprofile:%s  marketing-team distribution of OpenCode V1 (marketing-lead + research/growth/community + audience-researcher)\n' "$MUTED" "$RESET"
+  printf '%spinned:%s  opencode-ai@%s (installed runtime: %s)\n' "$MUTED" "$RESET" "$OPENCODE_PIN" "$installed"
+  printf '%sroot:%s    %s\n' "$MUTED" "$RESET" "$MARKETAGENTS_ROOT"
+  printf '%shome:%s    %s\n' "$MUTED" "$RESET" "$MARKETAGENTS_HOME"
+  printf '%sconfig:%s  %s\n' "$MUTED" "$RESET" "$OPENCODE_CONFIG"
+  printf '%sskills:%s  %s/skills\n' "$MUTED" "$RESET" "$SKILLS_ROOT"
+  printf '%sqloo:%s    %s\n' "$MUTED" "$RESET" "$(qloo_state)"
+}
+
+# --- Wrapper-level commands (BEFORE staging/exec) ---------------------------
+case "${1:-}" in
+  help|--help|-h)
+    usage
+    exit 0
+    ;;
+  --version|version)
+    version_block
+    exit 0
+    ;;
+  --stage-only)
+    STAGE_FIRST=0
+    stage_profile 1
+    printf 'staged profile -> %s (qloo: %s)\n' "$CONFIG_DIR" "$(qloo_state)"
+    exit 0
+    ;;
+  init-workspace)
+    shift
+    exec python3 "$REPO_ROOT/bin/init-workspace" "$@"
+    ;;
+  update)
+    if [[ ! -f "$REPO_ROOT/install.sh" ]]; then
+      die "no installer at $REPO_ROOT/install.sh — re-install: bash <repo>/install.sh"
+    fi
+    exec bash "$REPO_ROOT/install.sh" --update
+    ;;
+esac
+
+# --- Stage the profile on launch (first run + when source is newer) ---------
+STAGE_FIRST=0
+stage_profile 0
+
+# --- Optional positional dir: open that workspace/project --------------------
+if [[ $# -gt 0 && -d "$1" ]]; then
+  cd "$1" || die "cannot cd into $1"
+  shift
+elif [[ $# -gt 0 && "$1" == -* ]]; then
+  : # V1 flag -> passthrough
+elif [[ $# -gt 0 && ( "$1" == /* || "$1" == ./* || "$1" == ../* ) && ! -d "$1" ]]; then
+  die "$1 is not an existing directory (pass an existing workspace/project dir)"
+fi
+
+# --- Hermetic environment (SPEC §1) ----------------------------------------
+export MARKETAGENTS_HOME
+export MARKETAGENTS_ROOT
+export XDG_CONFIG_HOME="$MARKETAGENTS_HOME"
+export XDG_DATA_HOME="$MARKETAGENTS_HOME/data"
+export XDG_STATE_HOME="$MARKETAGENTS_HOME/state"
+export XDG_CACHE_HOME="$MARKETAGENTS_HOME/cache"
+export OPENCODE_CONFIG="$OPENCODE_CONFIG"
+# Defensive: a globally exported OPENCODE_CONFIG_DIR would load additional
+# config sources — isolation comes from the XDG redirect + OPENCODE_CONFIG.
+unset OPENCODE_CONFIG_DIR
+mkdir -p "$XDG_DATA_HOME" "$XDG_STATE_HOME" "$XDG_CACHE_HOME"
+
+# Hermetic skill set: V1 auto-scans ~/.claude/skills and ~/.agents/skills for
+# "external" skills. A distribution session must only see its OWN skills
+# (rendered skills.paths) plus built-ins, so that scan is disabled by default
+# on the pinned tag (flag documented by opencode 1.19.3 itself); users who
+# want their global external skills back can export 0.
+export OPENCODE_DISABLE_EXTERNAL_SKILLS="${OPENCODE_DISABLE_EXTERNAL_SKILLS:-1}"
+
+# --- Exec the isolated pinned runtime (NEVER a system opencode) -------------
+if [[ ! -x "$RUNTIME_BIN" ]]; then
+  printf '%smarketagents:%s OpenCode V1 runtime not found at %s\n' "$RED" "$RESET" "$RUNTIME_BIN" >&2
+  printf '%smarketagents ships its own pinned runtime (opencode-ai@%s) and never uses a system opencode.%s\n' "$MUTED" "$OPENCODE_PIN" "$RESET" >&2
+  printf '%sRun ./install.sh to install it (from the repo: bash <repo>/install.sh).%s\n' "$MUTED" "$RESET" >&2
+  exit 127
+fi
+[[ -f "$OPENCODE_CONFIG" ]] \
+  || die "no rendered profile config at $OPENCODE_CONFIG — re-run ./install.sh (or marketagents --stage-only)"
+
+# Observed on the pinned tag: beside the hermetic config, the runtime probes
+# the legacy ~/.opencode/opencode.json(c) path. Warn when such a file exists —
+# it WOULD be merged into the session (isolation caveat, documented in README).
+for legacy_cfg in "$HOME/.opencode/opencode.json" "$HOME/.opencode/opencode.jsonc"; do
+  if [[ -f "$legacy_cfg" ]]; then
+    printf '%smarketagents: warning:%s legacy config %s exists — the pinned runtime\nprobes it at boot and would merge it into this session. Move it aside for a\nfully hermetic marketagents session (your file is never modified here).\n' \
+      "$RED" "$RESET" "$legacy_cfg" >&2
+    break
+  fi
+done
+
+# First interactive launch only (plain `marketagents [dir]`, not passthrough).
+if [[ $# -eq 0 ]]; then
+  maybe_first_launch_banner
+fi
+
+exec "$RUNTIME_BIN" "$@"
