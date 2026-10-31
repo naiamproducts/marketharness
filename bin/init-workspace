@@ -170,7 +170,19 @@ def bind_aven(root, workspace_id):
     if proc and proc.returncode == 0:
         line = (proc.stdout or "").strip().splitlines()
         detail = line[0] if line else "registered"
-        return "aven project ready: %s" % detail
+        # Delegation labels must exist or `aven add --label <workstream>`
+        # fails with "unknown-label". aven's label create is idempotent.
+        created, failed = [], []
+        for label in ("research", "growth", "community", "review"):
+            lp = run_tool([aven, "label", "create", label], cwd=root)
+            if lp and lp.returncode == 0:
+                created.append(label)
+            else:
+                failed.append(label)
+        if failed:
+            return ("aven project ready: %s (labels NOT created: %s — run: aven label create <name>)"
+                    % (detail, ", ".join(failed)))
+        return "aven project ready: %s (labels: %s)" % (detail, ", ".join(created))
     err = ((proc.stderr or proc.stdout) if proc else "").strip().splitlines()
     return ("aven project NOT registered — %s\n     register manually: "
             "aven project create %s --path %s"
