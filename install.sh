@@ -239,10 +239,31 @@ acquire_source() {
     ok "marketharness already installed at $INSTALL_ROOT (reusing; set MARKETHARNESS_SOURCE=<dir> to re-sync from a local checkout)"
   else
     info "Cloning $REPO_URL -> $INSTALL_ROOT"
-    git clone --depth 1 "$REPO_URL" "$INSTALL_ROOT" \
-      || fail "git clone failed. Overrides:
+    # The runtime is installed FIRST (step [1/4]) with --prefix
+    # $INSTALL_ROOT/opencode, which already creates $INSTALL_ROOT. Cloning
+    # directly into it always fails ("destination path already exists and is
+    # not an empty directory"), so clone into a temp dir and merge the result
+    # in, keeping the runtime and the .git metadata (so --update still works).
+    local tmp
+    tmp="$(mktemp -d "${TMPDIR:-/tmp}/marketharness-clone.XXXXXX")" \
+      || fail "cannot create a temporary directory for git clone"
+    if ! git clone --depth 1 "$REPO_URL" "$tmp/repo"; then
+      rm -rf "$tmp"
+      fail "git clone failed. Overrides:
   local checkout:  MARKETHARNESS_SOURCE=<dir> ./install.sh
   other remote:    MARKETHARNESS_REPO_URL=<git url> ./install.sh"
+    fi
+    if [[ -e "$INSTALL_ROOT/.git" ]]; then
+      rm -rf "$tmp"
+      fail "$INSTALL_ROOT is already a git checkout, but $CLI_TARGET is missing (broken install).
+Inspect with:  git -C $INSTALL_ROOT status
+Or force a clean install:  rm -rf $INSTALL_ROOT && ./install.sh"
+    fi
+    mkdir -p "$INSTALL_ROOT"
+    ( cd "$tmp/repo" && tar --exclude=opencode --exclude=node_modules -cf - . ) \
+      | ( cd "$INSTALL_ROOT" && tar -xf - ) \
+      || { rm -rf "$tmp"; fail "copying the cloned checkout into $INSTALL_ROOT failed"; }
+    rm -rf "$tmp"
   fi
 
   [[ -f "$CLI_TARGET" ]] || fail "install incomplete: missing $CLI_TARGET"
