@@ -48,6 +48,20 @@ Rules for agents working on this project; company policies add to them
   any change = new approval. Only `marketharness-publish` executes.
 - Deleting content is forbidden.
 
+## Tasks and memory (optional local tools — fail-soft)
+
+- Delegations are aven tasks: marketing-lead creates one per workstream
+  BEFORE delegating (`aven add "<title>" --label <research|growth|community>
+  --priority <p>`) and carries the task ref in the delegation prompt.
+- A delegate writes back with `aven note <ref> --stdin` ONLY and never
+  changes task status — marketing-lead alone sets `done` / `canceled`.
+- Save decisions and findings to engram with `mem_save` under the topic key
+  `marketharness/{{workspace_id}}/<area>` (consolidated decisions under
+  `marketharness/{{workspace_id}}/decisions`).
+- If engram or aven is missing or a call fails, state it in one line and
+  continue: memory and tracking never block delivery. Never invent aven refs
+  or Engram observation IDs.
+
 ## Deliverable paths (all relative to this project directory)
 
 | Work | Path |

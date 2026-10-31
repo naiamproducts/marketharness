@@ -18,7 +18,7 @@ installed and a credential exists (the harness's private config or
 ## Quick start
 
 ```bash
-./install.sh      # preflight -> pinned runtime -> repo copy -> rendered config -> CLI link
+./install.sh      # preflight -> optional tools -> pinned runtime -> repo copy -> rendered config -> CLI link
 marketharness      # first launch prints the onboarding checklist
 # inside the TUI:
 /marketharness-init
@@ -139,6 +139,12 @@ sessions, plugins, or the `opencode` command.
   `~/.agents/skills`) is disabled by default
   (`OPENCODE_DISABLE_EXTERNAL_SKILLS=1`; export `0` to opt back in), so a
   session sees exactly the distribution's 8 skills plus built-ins.
+- **Product-private optional tools**: `engram` and `aven` binaries live only
+  under the install root (`tools/bin`, prepended to `PATH` for the session);
+  a pre-existing `engram`/`aven` on your `PATH` is never read, moved, or used.
+  The **only** intentionally shared state is aven's SQLite DB, pinned to your
+  real state home via `AVEN_DB` (see "Memory and tasks" below) — it is your
+  board, not a per-workspace silo.
 - **Staged, fail-loud config**: the profile is rendered from `profile/` on
   first run and whenever the source is newer (mtime), atomically, backing up
   any file that differs as `<file>.bak.<timestamp>`; leftover placeholders
@@ -159,6 +165,55 @@ was never modified.) Workspace-local config (`opencode.json` inside the
 opened project dir) loads in addition to the global profile, as designed for
 project norms; the shared deny rules live in the profile config and are not
 relaxed by the shipped workspace templates.
+
+## Memory and tasks (optional, auto-installed)
+
+Two optional local integrations ship with the install. Both are **single local
+binaries** — no server, no database service, no account — and both are
+**fail-soft**: the harness, every agent, and every command work without them.
+
+| Tool | What it does | Installed to |
+|---|---|---|
+| **engram** | Persistent local memory (`engram mcp`, a stdio MCP server). Decisions and findings survive sessions and compactions. | `$INSTALL_ROOT/tools/bin/engram` |
+| **aven** | Local-first task manager over SQLite. Every delegation is a tracked task instead of a chat message. | `$INSTALL_ROOT/tools/bin/aven` |
+
+- **Auto-installed, checksum-verified.** `./install.sh` asks the GitHub
+  releases API for the latest release of each tool (no hardcoded version),
+  downloads the architecture-matched archive (`amd64`/`arm64`) into
+  `$INSTALL_ROOT/tools/bin`, and verifies its sha256 before installing. If a
+  download or the verification fails it **warns and continues** — the install
+  never fails because of these tools. Already-present, runnable binaries are
+  skipped with their version printed. Opt out with
+  `MARKETHARNESS_SKIP_ENGRAM=1` / `MARKETHARNESS_SKIP_AVEN=1`.
+- **Degradation is explicit.** With engram absent, the `mcp.engram` entry is
+  removed from the rendered config (same gate as `mcp.qloo`); with aven
+  absent, tasks are simply not recorded. Agents state the degradation in one
+  line and continue — memory and tracking never block delivery, and refs or
+  observation IDs are never invented.
+- **Product-private binaries.** `$INSTALL_ROOT/tools/bin` is prepended to
+  `PATH` for the harness session, so the product never touches (or uses) a
+  pre-existing `engram`/`aven` on your `PATH`. They are never installed to
+  `~/.local/bin`, and `tools/` is gitignored so `marketharness update`'s
+  clean-checkout check never mistakes them for untracked files.
+- **aven DB = your real board.** The launcher captures your real state home
+  (`REAL_XDG_STATE_HOME="${XDG_STATE_HOME:-$HOME/.local/state}"`) **before**
+  redirecting XDG, then exports
+  `AVEN_DB="$REAL_XDG_STATE_HOME/aven/db.sqlite"`. Tasks land where your
+  `aven list` already looks instead of inside the hermetic
+  `~/.config/marketharness/state`. This is the one deliberately shared piece
+  of state: the board is yours, across projects. Set `AVEN_DB` yourself to
+  use a different database.
+- **Memory topic keys.** `marketharness/<workspace>/<area>`, where area is
+  `research`, `growth`, `community`, or `decisions`. Each workspace binds its
+  own engram project (`.engram/config.json`) so cwd detection cannot walk up
+  to a parent project.
+- **Workspace binding.** `marketharness init-workspace` runs `git init`
+  (aven routes tasks by project boundary), writes `.engram/config.json`, and
+  registers the workspace path as an aven project. If the tools are missing
+  it prints a one-line instruction and the scaffold still succeeds.
+
+Inspect the board with `aven list` from a harness session (or your own aven —
+same default DB). Inspect memory with `engram context` / `engram search`.
 
 ## Model first run (SPEC §9)
 
@@ -182,8 +237,8 @@ setup** — any future import would be copy-only and explicit, never automatic.
 
 - The launcher's subcommands: `marketharness init-workspace <dir>`,
   `marketharness update`, `marketharness help`, `marketharness --version`
-  (product version + runtime pin + config paths + qloo state), plus an
-  optional positional dir (`marketharness <workspace-or-project-dir>`).
+  (product version + runtime pin + config paths + qloo/engram/aven state),
+  plus an optional positional dir (`marketharness <workspace-or-project-dir>`).
   Anything else is passed through to the pinned runtime unchanged.
 - Symlink installation has a collision guard (a foreign `~/.local/bin/
   marketharness` is never clobbered without `--force`, which backs it up) and

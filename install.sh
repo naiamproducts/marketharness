@@ -2,22 +2,28 @@
 # marketharness installer — hermetic OpenCode V1 distribution for a marketing team.
 #
 # Installs, idempotently:
-#   1. the pinned OpenCode V1 runtime (opencode-ai@1.19.3) into its OWN npm
+#   1. optional local tools: engram (persistent memory, MCP) and aven
+#      (local-first tasks) into $INSTALL_ROOT/tools/bin — single binaries,
+#      sha256-verified, fail-soft: a download/verification failure warns and
+#      the install continues. Opt out with MARKETHARNESS_SKIP_ENGRAM=1 /
+#      MARKETHARNESS_SKIP_AVEN=1. Never installed to ~/.local/bin.
+#   2. the pinned OpenCode V1 runtime (opencode-ai@1.19.3) into its OWN npm
 #      prefix: ~/.local/share/marketharness/opencode — never ~/.opencode,
 #      never ~/.local/share/opencode*, never the system `opencode` command
-#   2. the marketharness repo copy -> ~/.local/share/marketharness
+#   3. the marketharness repo copy -> ~/.local/share/marketharness
 #      (from MARKETHARNESS_SOURCE=<dir> — re-copied on every run — or by
 #      cloning MARKETHARNESS_REPO_URL)
-#   3. the rendered profile config -> ~/.config/marketharness/opencode
+#   4. the rendered profile config -> ~/.config/marketharness/opencode
 #      (staging runs through the launcher's --stage-only mode so install and
-#      first run share ONE render implementation: placeholders, the Qloo gate,
-#      .bak.<timestamp> backups of edited staged files)
-#   4. the `marketharness` symlink -> ~/.local/bin/marketharness (collision
+#      first run share ONE render implementation: placeholders, the Qloo and
+#      engram gates, .bak.<timestamp> backups of edited staged files)
+#   5. the `marketharness` symlink -> ~/.local/bin/marketharness (collision
 #      guard, PATH-shadow warning)
 #
 # The user's existing OpenCode install (~/.config/opencode,
 # ~/.local/share/opencode*, ~/.opencode, credentials, sessions, the opencode
-# binary) is NEVER read or written.
+# binary) is NEVER read or written. A pre-existing engram/aven on the user's
+# PATH is never touched: the product uses its own copies under tools/bin.
 #
 # Modes:
 #   ./install.sh                 full install (see above)
@@ -39,6 +45,8 @@
 #                          (default: https://github.com/naiamproducts/marketharness)
 #   MARKETHARNESS_ROOT      install root (default: ~/.local/share/marketharness)
 #   MARKETHARNESS_HOME      config home  (default: ~/.config/marketharness)
+#   MARKETHARNESS_SKIP_ENGRAM=1  do not install engram (optional tool)
+#   MARKETHARNESS_SKIP_AVEN=1    do not install aven   (optional tool)
 set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -55,6 +63,14 @@ CONFIG_DIR="$CONFIG_HOME/opencode"
 BIN_DIR="$HOME/.local/bin"
 CLI_LINK="$BIN_DIR/marketharness"
 CLI_TARGET="$INSTALL_ROOT/bin/marketharness"
+
+# Optional local tools: product-private binaries, never ~/.local/bin.
+TOOLS_BIN="$INSTALL_ROOT/tools/bin"
+case "$(uname -m)" in
+  x86_64|amd64)  TOOL_ARCH="amd64" ;;
+  aarch64|arm64) TOOL_ARCH="arm64" ;;
+  *)             TOOL_ARCH="" ;;
+esac
 
 REPO_URL="${MARKETHARNESS_REPO_URL:-https://github.com/naiamproducts/marketharness}"
 ORIGINAL_PATH="$PATH"
@@ -170,9 +186,143 @@ preflight() {
   ok "Prerequisites present: git, curl, node ($(node --version 2>/dev/null || true)), npm, python3 ($(python3 --version 2>/dev/null | awk '{print $2}'))"
 }
 
-# --- 2. Pinned OpenCode V1 runtime (own npm prefix) -------------------------
+# --- 2. Optional local tools: engram + aven ---------------------------------
+# Both are SINGLE local binaries (no server, no DB service, no account):
+#   engram -> persistent local memory, `engram mcp` stdio MCP server
+#   aven   -> local-first task board over the user's own SQLite DB
+# They live inside the install root, are sha256-verified before install, and
+# are FAIL-SOFT: every failure below warns and the install continues, because
+# the harness must work without them. Versions come from the GitHub releases
+# API, never a hardcoded pin.
+tool_version() {
+  "$1" --version 2>/dev/null | grep -Eo '[0-9]+\.[0-9]+\.[0-9]+' | head -1 || true
+}
+
+tool_state() {
+  local v
+  if [[ -x "$TOOLS_BIN/$1" ]]; then
+    v="$(tool_version "$TOOLS_BIN/$1")"
+    if [[ -n "$v" ]]; then printf '%s (%s)' "$v" "$TOOLS_BIN/$1"; return 0; fi
+  fi
+  printf 'not installed (optional)'
+}
+
+# Download the latest release asset + its checksum, verify sha256, extract the
+# binary into $TOOLS_BIN. Patterns understand {ver}, {arch}, {asset}.
+# Always returns 0: a failure is a warning, never an install failure.
+install_release_tool() {
+  local name="$1" repo="$2" asset_pat="$3" sum_pat="$4"
+  local api tag ver asset sum_name dl sum_url tmp expected actual rc
+
+  api="$(curl -fsSL --max-time 30 "https://api.github.com/repos/$repo/releases/latest")" \
+    || { warn "$name: GitHub releases API unreachable ($repo) — skipped (optional)"; return 0; }
+  tag="$(printf '%s' "$api" | python3 -c \
+    'import json,sys; print(json.load(sys.stdin).get("tag_name") or "")' 2>/dev/null || true)"
+  [[ -n "$tag" ]] \
+    || { warn "$name: could not parse the latest release tag ($repo) — skipped (optional)"; return 0; }
+  ver="${tag#v}"
+
+  asset="${asset_pat//\{ver\}/$ver}"; asset="${asset//\{arch\}/$TOOL_ARCH}"
+  sum_name="${sum_pat//\{ver\}/$ver}"; sum_name="${sum_name//\{arch\}/$TOOL_ARCH}"
+  sum_name="${sum_name//\{asset\}/$asset}"
+
+  dl="$(printf '%s' "$api" | python3 -c '
+import json, sys
+want = sys.argv[1]
+for item in json.load(sys.stdin).get("assets") or []:
+    if item.get("name") == want:
+        print(item.get("browser_download_url") or "")
+        break
+' "$asset" 2>/dev/null || true)"
+  [[ -n "$dl" ]] \
+    || { warn "$name: no '$asset' asset in $repo $tag (arch: $TOOL_ARCH) — skipped (optional)"; return 0; }
+  sum_url="https://github.com/$repo/releases/download/$tag/$sum_name"
+
+  command -v sha256sum >/dev/null 2>&1 \
+    || { warn "$name: sha256sum unavailable — refusing an unverified download (optional)"; return 0; }
+
+  tmp="$(mktemp -d "${TMPDIR:-/tmp}/marketharness-$name.XXXXXX")" \
+    || { warn "$name: cannot create a temp dir — skipped (optional)"; return 0; }
+
+  if ! curl -fsSL --max-time 180 "$dl" -o "$tmp/$asset"; then
+    rm -rf "$tmp"; warn "$name: download failed ($asset) — skipped (optional)"; return 0
+  fi
+  if ! curl -fsSL --max-time 30 "$sum_url" -o "$tmp/checksums"; then
+    rm -rf "$tmp"; warn "$name: checksum download failed ($sum_name) — skipped (optional)"; return 0
+  fi
+  rc=0
+  expected="$(awk -v f="$asset" '$2 == f { print $1; exit }' "$tmp/checksums" 2>/dev/null)" || rc=$?
+  if [[ "$rc" != "0" || -z "$expected" ]]; then
+    rm -rf "$tmp"; warn "$name: no sha256 entry for $asset in $sum_name — skipped (optional)"; return 0
+  fi
+  actual="$(sha256sum "$tmp/$asset" 2>/dev/null | awk '{print $1}')" || actual=""
+  if [[ -z "$actual" || "$actual" != "$expected" ]]; then
+    rm -rf "$tmp"
+    warn "$name: sha256 mismatch (expected $expected, got ${actual:-none}) — not installed"
+    return 0
+  fi
+  if ! tar -xzf "$tmp/$asset" -C "$tmp" >/dev/null 2>&1 || [[ ! -f "$tmp/$name" ]]; then
+    rm -rf "$tmp"; warn "$name: archive did not contain a '$name' binary — skipped (optional)"; return 0
+  fi
+  if ! install -m 0755 "$tmp/$name" "$TOOLS_BIN/$name" >/dev/null 2>&1; then
+    rm -rf "$tmp"; warn "$name: could not install into $TOOLS_BIN — skipped (optional)"; return 0
+  fi
+  rm -rf "$tmp"
+  actual="$(tool_version "$TOOLS_BIN/$name")"
+  if [[ -z "$actual" ]]; then
+    rm -f "$TOOLS_BIN/$name"; warn "$name: installed binary is not runnable — removed (optional)"; return 0
+  fi
+  ok "$name installed: $actual ($TOOLS_BIN/$name, sha256 verified)"
+}
+
+install_engram() {
+  local cur
+  if [[ -x "$TOOLS_BIN/engram" ]]; then
+    cur="$(tool_version "$TOOLS_BIN/engram")"
+    if [[ -n "$cur" ]]; then
+      ok "engram already present: $cur ($TOOLS_BIN/engram), skipping"
+      return 0
+    fi
+  fi
+  if [[ "${MARKETHARNESS_SKIP_ENGRAM:-0}" == "1" ]]; then
+    info "engram skipped (MARKETHARNESS_SKIP_ENGRAM=1)"
+    return 0
+  fi
+  install_release_tool engram Gentleman-Programming/engram \
+    'engram_{ver}_linux_{arch}.tar.gz' 'checksums.txt'
+}
+
+install_aven() {
+  local cur
+  if [[ -x "$TOOLS_BIN/aven" ]]; then
+    cur="$(tool_version "$TOOLS_BIN/aven")"
+    if [[ -n "$cur" ]]; then
+      ok "aven already present: $cur ($TOOLS_BIN/aven), skipping"
+      return 0
+    fi
+  fi
+  if [[ "${MARKETHARNESS_SKIP_AVEN:-0}" == "1" ]]; then
+    info "aven skipped (MARKETHARNESS_SKIP_AVEN=1)"
+    return 0
+  fi
+  install_release_tool aven raine/aven \
+    'aven-linux-{arch}.tar.gz' 'aven-linux-{arch}.sha256'
+}
+
+install_tools() {
+  printf '\n%s[1/5]%s optional local tools (engram memory + aven tasks)\n' "$INDIGO" "$RESET"
+  if [[ -z "$TOOL_ARCH" ]]; then
+    warn "unsupported architecture $(uname -m) — engram/aven not installed (optional; the harness works without them)"
+    return 0
+  fi
+  mkdir -p "$TOOLS_BIN" 2>/dev/null || true
+  install_engram
+  install_aven
+}
+
+# --- 3. Pinned OpenCode V1 runtime (own npm prefix) -------------------------
 install_runtime() {
-  printf '\n%s[1/4]%s OpenCode V1 runtime (pinned)\n' "$INDIGO" "$RESET"
+  printf '\n%s[2/5]%s OpenCode V1 runtime (pinned)\n' "$INDIGO" "$RESET"
 
   if [[ -x "$RUNTIME_BIN" ]]; then
     local cur
@@ -223,7 +373,7 @@ copy_source() {
   # local state, or any .bak.<ts> backups.
   info "Copying $src -> $INSTALL_ROOT (every run when MARKETHARNESS_SOURCE is set)"
   (cd "$src" && tar \
-      --exclude=.git --exclude=opencode --exclude=node_modules \
+      --exclude=.git --exclude=opencode --exclude=node_modules --exclude=tools \
       --exclude='*.bak.*' --exclude=__pycache__ --exclude='*.pyc' \
       --exclude=.connector-log.jsonl --exclude=.connector-pending.json \
       --exclude=.env -cf - .) \
@@ -231,7 +381,7 @@ copy_source() {
 }
 
 acquire_source() {
-  printf '\n%s[2/4]%s marketharness repo copy\n' "$INDIGO" "$RESET"
+  printf '\n%s[3/5]%s marketharness repo copy\n' "$INDIGO" "$RESET"
 
   if [[ -n "${MARKETHARNESS_SOURCE:-}" ]]; then
     copy_source "$MARKETHARNESS_SOURCE"
@@ -239,7 +389,7 @@ acquire_source() {
     ok "marketharness already installed at $INSTALL_ROOT (reusing; set MARKETHARNESS_SOURCE=<dir> to re-sync from a local checkout)"
   else
     info "Cloning $REPO_URL -> $INSTALL_ROOT"
-    # The runtime is installed FIRST (step [1/4]) with --prefix
+    # The runtime is installed FIRST (step [2/5]) with --prefix
     # $INSTALL_ROOT/opencode, which already creates $INSTALL_ROOT. Cloning
     # directly into it always fails ("destination path already exists and is
     # not an empty directory"), so clone into a temp dir and merge the result
@@ -274,11 +424,12 @@ Or force a clean install:  rm -rf $INSTALL_ROOT && ./install.sh"
 
 # --- 4. Rendered profile config (shared with the launcher) ------------------
 # Staging runs the LAUNCHER's --stage-only mode: one render implementation
-# everywhere (placeholder substitution, the Qloo gate — canonical `qloo mcp`
-# entry, no credential in any config file, atomic writes, .bak.<timestamp>
-# backups of edited staged files, loud placeholder + credential checks).
+# everywhere (placeholder substitution, the Qloo + engram gates — canonical
+# `qloo mcp` entry, absolute `engram mcp` entry, no credential in any config
+# file, atomic writes, .bak.<timestamp> backups of edited staged files, loud
+# placeholder + credential checks).
 stage_config() {
-  printf '\n%s[3/4]%s profile config -> %s\n' "$INDIGO" "$RESET" "$CONFIG_DIR"
+  printf '\n%s[4/5]%s profile config -> %s\n' "$INDIGO" "$RESET" "$CONFIG_DIR"
   bash "$CLI_TARGET" --stage-only || fail "profile staging failed (see errors above)"
   placeholder_check
   ok "profile staged: opencode.json, tui.json, theme, logo plugin, 5 agents"
@@ -286,7 +437,7 @@ stage_config() {
 
 placeholder_check() {
   local leftovers
-  leftovers="$(grep -RIl '__MARKETHARNESS_ROOT__\|__MARKETHARNESS_CONFIG__\|__QLOO_MCP__' \
+  leftovers="$(grep -RIl '__MARKETHARNESS_ROOT__\|__MARKETHARNESS_CONFIG__\|__QLOO_MCP__\|__ENGRAM_BIN__' \
                  "$CONFIG_DIR" 2>/dev/null || true)"
   [[ -z "$leftovers" ]] \
     || fail "placeholder(s) not substituted in the staged config:
@@ -306,7 +457,7 @@ The rendered config must never carry a Qloo key (official Qloo kit rule)."
 
 # --- 5. CLI symlink ---------------------------------------------------------
 link_cli() {
-  printf '\n%s[4/4]%s CLI symlink\n' "$INDIGO" "$RESET"
+  printf '\n%s[5/5]%s CLI symlink\n' "$INDIGO" "$RESET"
   info "Linking $CLI_TARGET -> $CLI_LINK"
   mkdir -p "$BIN_DIR"
 
@@ -508,6 +659,9 @@ sanity() {
   printf '  config home  %s\n' "$CONFIG_HOME"
   printf '  config file  %s\n' "$CONFIG_DIR/opencode.json"
   printf '  launcher     %s\n' "$CLI_LINK"
+  printf '  engram       %s\n' "$(tool_state engram)"
+  printf '  aven         %s\n' "$(tool_state aven)"
+  printf '  aven db      %s\n' "${AVEN_DB:-${XDG_STATE_HOME:-$HOME/.local/state}/aven/db.sqlite}"
   [[ -n "$ver" && "$ver" == "$OPENCODE_PIN" ]] || fail "runtime is not runnable/reports wrong version ('$ver')"
 
   placeholder_check
@@ -555,7 +709,13 @@ ${BOLD}Next steps${RESET}
      the onboarding flow offers provider setup WITHOUT touching your existing
      OpenCode credentials (copy-only, explicit — never automatic).
 
-${MUTED}Isolation: runtime in $RUNTIME_PREFIX, config in $CONFIG_HOME.
+${BOLD}Memory and tasks (optional, fail-soft)${RESET}
+  engram  $(tool_state engram)   — decisions/findings saved across sessions
+  aven    $(tool_state aven)   — delegations tracked as tasks; inspect with: aven list
+  tasks DB: ${AVEN_DB:-${XDG_STATE_HOME:-$HOME/.local/state}/aven/db.sqlite} (your real aven board)
+
+${MUTED}Isolation: runtime in $RUNTIME_PREFIX, config in $CONFIG_HOME,
+optional tools in $TOOLS_BIN.
 Your OpenCode install (~/.config/opencode, ~/.local/share/opencode*,
 ~/.opencode, credentials, sessions) and your workspaces were never touched.${RESET}
 
@@ -620,6 +780,7 @@ Re-run with your local checkout:  MARKETHARNESS_SOURCE=<dir> ./install.sh --upda
 
   chmod +x "$CLI_TARGET" "$INSTALL_ROOT/bin/init-workspace" 2>/dev/null || true
   printf '\n'
+  install_tools
   stage_config
   link_cli
   qloo_note
@@ -689,6 +850,7 @@ if [[ "$UPDATE" == "1" ]]; then
 fi
 
 preflight
+install_tools
 install_runtime
 acquire_source
 stage_config

@@ -17,17 +17,26 @@
 #   marketharness update        re-run the installer in --update mode
 #   marketharness help          show this help
 #   marketharness --version     product version + runtime pin + config paths +
-#                              qloo state
+#                              qloo state + engram/aven state
 #   marketharness --stage-only  force a re-render of the profile config into
 #                              the config home (used by install.sh)
 #   anything else              passed through verbatim to the pinned runtime
 #                              (agent list, models, debug config, debug skill,
 #                              run, serve, session, ...)
 #
+# Optional local tools (SPEC §7b): engram (persistent memory, MCP) and aven
+# (local-first tasks) are single product-private binaries under
+# $MARKETHARNESS_ROOT/tools/bin. Their PATH entry takes precedence over any
+# user install. aven's DB is pinned to the caller's REAL state home (captured
+# before the XDG redirect) and is intentionally shared across projects.
+#
 # Environment:
 #   MARKETHARNESS_HOME  config home (default: $HOME/.config/marketharness)
 #   MARKETHARNESS_ROOT  install root — runtime + installed repo copy
 #                      (default: $HOME/.local/share/marketharness)
+#   AVEN_DB            aven SQLite DB. Default: the caller's
+#                      ${XDG_STATE_HOME:-$HOME/.local/state}/aven/db.sqlite
+#                      (never the hermetic state dir). Set it to use another DB.
 #   QLOO_API_KEY       optional server-style auth: passed through to the MCP
 #                      child when present. It is NOT required — the canonical
 #                      entry {"command":"qloo","args":["mcp"]} carries no key
@@ -57,6 +66,22 @@ MARKETHARNESS_ROOT="${MARKETHARNESS_ROOT:-$HOME/.local/share/marketharness}"
 CONFIG_DIR="$MARKETHARNESS_HOME/opencode"                  # XDG_CONFIG_HOME/opencode
 OPENCODE_CONFIG="$CONFIG_DIR/opencode.json"
 RUNTIME_BIN="$MARKETHARNESS_ROOT/opencode/node_modules/.bin/opencode"
+
+# The caller's REAL state home, captured BEFORE the XDG redirect below (SPEC
+# §7b). aven resolves its SQLite DB under XDG state, so redirecting first
+# would bury every product task in a private DB the user never sees. A
+# caller-set AVEN_DB always wins (custom boards stay possible).
+REAL_XDG_STATE_HOME="${XDG_STATE_HOME:-$HOME/.local/state}"
+AVEN_DB="${AVEN_DB:-$REAL_XDG_STATE_HOME/aven/db.sqlite}"
+
+# Product-private optional tools (SPEC §7b). Prepending them to PATH means a
+# pre-existing engram/aven on the user's PATH is never read or used by this
+# product, while agents' `aven ...` / `engram ...` calls resolve here.
+TOOLS_BIN="$MARKETHARNESS_ROOT/tools/bin"
+ENGRAM_BIN="$TOOLS_BIN/engram"
+if [[ -d "$TOOLS_BIN" ]]; then
+  PATH="$TOOLS_BIN:$PATH"
+fi
 
 # Where the rendered skills path points: the repo that owns THIS launcher when
 # it carries a skills/ tree (installed copy or dev checkout), else the install root.
@@ -228,6 +253,34 @@ qloo_state() {
   if [[ -n "$note" ]]; then printf ' — %s' "$note"; fi
 }
 
+# --- Optional tools state (SPEC §7b) ----------------------------------------
+# engram (memory) and aven (tasks) are optional product-private binaries.
+# Missing tools never block a launch: the mcp.engram entry is removed from the
+# render and agents state the degradation in one line.
+engram_available() {
+  [[ -x "$ENGRAM_BIN" ]] && "$ENGRAM_BIN" --version >/dev/null 2>&1
+}
+
+engram_state() {
+  if engram_available; then
+    printf 'active (%s; mcp.engram rendered: %s mcp)' \
+      "$("$ENGRAM_BIN" --version 2>/dev/null | head -1)" "$ENGRAM_BIN"
+  else
+    printf 'not installed (optional — mcp.engram omitted from the render)'
+  fi
+}
+
+aven_state() {
+  local bin ver
+  bin="$(command -v aven 2>/dev/null || true)"
+  if [[ -z "$bin" ]]; then
+    printf 'not installed (optional — delegations are tracked only when aven is present)'
+    return 0
+  fi
+  ver="$("$bin" --version 2>/dev/null | head -1)"
+  printf '%s (%s) — tasks go to %s' "${ver:-aven}" "$bin" "$AVEN_DB"
+}
+
 # --- Profile staging (first run + source-newer-than-stamp) ------------------
 # Renders profile/ into the config home with python3 (atomic writes):
 #   __MARKETHARNESS_ROOT__   -> repo whose skills/ dir is shipped
@@ -237,6 +290,9 @@ qloo_state() {
 #                              removed from the JSON (SPEC §7). Producer and
 #                              consumer are this same render: any surviving
 #                              placeholder aborts the launch below.
+#   __ENGRAM_BIN__           -> absolute product-private engram binary when it
+#                              exists, else the mcp.engram entry is removed
+#                              (SPEC §7b).
 # Never clobbers a staged file that differs from the incoming render without
 # backing it up first as <file>.bak.<timestamp>.
 stage_profile() {
@@ -260,19 +316,24 @@ stage_profile() {
   fi
 
   mkdir -p "$CONFIG_DIR"
-  local out
+  local out engram_token=""
+  if engram_available; then engram_token="$ENGRAM_BIN"; fi
   if ! out="$(python3 - "$profile_src" "$CONFIG_DIR" "$SKILLS_ROOT" \
-                     "$QLOO_TOKEN" "$stamp" <<'PY'
+                     "$QLOO_TOKEN" "$engram_token" "$stamp" <<'PY'
 import json, os, re, shutil, sys, tempfile, time
 
-profile_src, config_dir, skills_root, qloo, stamp = sys.argv[1:6]
+profile_src, config_dir, skills_root, qloo, engram, stamp = sys.argv[1:7]
 # `qloo` is the canonical command token (SPEC §7): the entry renders as
 # {"type":"local","command":["qloo","mcp"]} and never carries a credential.
+# `engram` is the absolute product-private binary (SPEC §7b).
 qloo = qloo or None
+engram = engram or None
 SUBS = {
     "__MARKETHARNESS_ROOT__": skills_root,
     "__MARKETHARNESS_CONFIG__": config_dir,
 }
+if engram:
+    SUBS["__ENGRAM_BIN__"] = engram
 PLACEHOLDER = re.compile(r"__[A-Z][A-Z0-9_]*__")
 ts = time.strftime("%Y%m%d%H%M%S")
 first_run = 0 if os.path.exists(stamp) else 1
@@ -293,7 +354,7 @@ def substitute_strings(node):
     return node
 
 
-changed = backups = removed_qloo = 0
+changed = backups = removed_qloo = removed_engram = 0
 errors = []
 for root, _dirs, files in os.walk(profile_src):
     for name in sorted(files):
@@ -308,17 +369,20 @@ for root, _dirs, files in os.walk(profile_src):
             except ValueError as exc:
                 errors.append(f"{rel}: not valid JSON in source ({exc})")
                 continue
-            # Qloo gate (SPEC §7): the mcp.qloo entry is present ONLY when the
-            # gate allowed it. mcp["qloo-docs"] (credential-free docs MCP) is
-            # never touched. Without the token the entry is removed so the
-            # render stays valid and placeholder-free.
-            if PLACEHOLDER.search(json.dumps(data)):
-                if qloo:
-                    data = substitute_strings(data)  # late paths, if any
-                mcp = data.get("mcp")
-                if isinstance(mcp, dict) and "qloo" in mcp and not qloo:
-                    del mcp["qloo"]
-                    removed_qloo = 1
+            # MCP gates (SPEC §7, §7b): an entry is present ONLY when its gate
+            # allowed it. mcp["qloo-docs"] (credential-free docs MCP) is never
+            # touched. Without the token the entry is removed so the render
+            # stays valid and placeholder-free.
+            mcp = data.get("mcp")
+            if isinstance(mcp, dict):
+                if "__QLOO_MCP__" in json.dumps(data) and not qloo:
+                    if "qloo" in mcp:
+                        del mcp["qloo"]
+                        removed_qloo = 1
+                if "__ENGRAM_BIN__" in json.dumps(data) and not engram:
+                    if "engram" in mcp:
+                        del mcp["engram"]
+                        removed_engram = 1
             out = json.dumps(data, indent=2, ensure_ascii=False) + "\n"
         else:
             out = raw
@@ -360,7 +424,7 @@ if errors:
         print(f"staging error: {e}", file=sys.stderr)
     sys.exit(1)
 
-print(f"first={first_run} changed={changed} backups={backups} qloo_removed={removed_qloo}")
+print(f"first={first_run} changed={changed} backups={backups} qloo_removed={removed_qloo} engram_removed={removed_engram}")
 PY
   )"; then
     die "profile staging failed (see errors above); refusing to launch with a broken config"
@@ -379,9 +443,10 @@ PY
   fi
 
   # Fail loudly if ANY placeholder survived the render — a leftover would
-  # silently break skills discovery, the theme/logo plugin, or qloo wiring.
+  # silently break skills discovery, the theme/logo plugin, or qloo/engram
+  # wiring.
   local leftovers
-  leftovers="$(grep -RIl '__MARKETHARNESS_ROOT__\|__MARKETHARNESS_CONFIG__\|__QLOO_MCP__' \
+  leftovers="$(grep -RIl '__MARKETHARNESS_ROOT__\|__MARKETHARNESS_CONFIG__\|__QLOO_MCP__\|__ENGRAM_BIN__' \
                  "$CONFIG_DIR" 2>/dev/null || true)"
   [[ -z "$leftovers" ]] \
     || die "placeholder(s) survived staging in: $(printf '%s ' $leftovers)
@@ -435,7 +500,7 @@ ${BOLD}Usage${RESET}
                                is backed up first as <file>.bak.<timestamp>)
   marketharness help            show this help
   marketharness --version       product version, runtime pin, config paths,
-                               qloo state
+                               qloo state, engram/aven state
   marketharness --stage-only    force re-render of the profile config
 
 ${BOLD}Team${RESET}
@@ -456,8 +521,11 @@ ${BOLD}OpenCode V1 flags and subcommands (passed through)${RESET}
 ${MUTED}Config home : $MARKETHARNESS_HOME   (XDG_CONFIG_HOME; rendered profile lives in $CONFIG_DIR)
 Install root : $MARKETHARNESS_ROOT   (pinned runtime + installed repo)
 Runtime      : $RUNTIME_BIN
+Optional     : engram $(engram_state)
+             : aven   $(aven_state)
 Your existing OpenCode install (~/.config/opencode, ~/.local/share/opencode,
-the opencode command) is never read or written.${RESET}
+the opencode command) is never read or written; a pre-existing engram/aven on
+your PATH is never used (product-private copies in $TOOLS_BIN take precedence).${RESET}
 EOF
 }
 
@@ -474,6 +542,9 @@ version_block() {
   printf '%sconfig:%s  %s\n' "$MUTED" "$RESET" "$OPENCODE_CONFIG"
   printf '%sskills:%s  %s/skills\n' "$MUTED" "$RESET" "$SKILLS_ROOT"
   printf '%sqloo:%s    %s\n' "$MUTED" "$RESET" "$(qloo_state)"
+  printf '%sengram:%s  %s\n' "$MUTED" "$RESET" "$(engram_state)"
+  printf '%saven:%s    %s\n' "$MUTED" "$RESET" "$(aven_state)"
+  printf '%stools:%s   %s\n' "$MUTED" "$RESET" "$TOOLS_BIN"
 }
 
 # --- Wrapper-level commands (BEFORE staging/exec) ---------------------------
@@ -489,7 +560,8 @@ case "${1:-}" in
   --stage-only)
     STAGE_FIRST=0
     stage_profile 1
-    printf 'staged profile -> %s (qloo: %s)\n' "$CONFIG_DIR" "$(qloo_state)"
+    printf 'staged profile -> %s (qloo: %s; engram: %s)\n' \
+      "$CONFIG_DIR" "$(qloo_state)" "$(engram_state)"
     exit 0
     ;;
   init-workspace)
@@ -521,6 +593,9 @@ fi
 # --- Hermetic environment (SPEC §1) ----------------------------------------
 export MARKETHARNESS_HOME
 export MARKETHARNESS_ROOT
+# aven's DB (SPEC §7b): pinned to the caller's REAL state home, captured before
+# this XDG redirect. The hermetic state dir must never own the task board.
+export AVEN_DB
 export XDG_CONFIG_HOME="$MARKETHARNESS_HOME"
 export XDG_DATA_HOME="$MARKETHARNESS_HOME/data"
 export XDG_STATE_HOME="$MARKETHARNESS_HOME/state"

@@ -5,6 +5,15 @@
 # Backups created by install/update/staging
 *.bak.*
 
+# Optional product-private tools (engram/aven binaries downloaded into the
+# install root by install.sh — never committed, never seen by --update's
+# git-clean check)
+tools/
+
+# Runtime installed into the install root (npm prefix), not part of the repo
+opencode/
+node_modules/
+
 # Python
 __pycache__/
 *.pyc

@@ -15,9 +15,18 @@ OpenCode" (v0.1 MVP) with these settled decisions:
    (own runtime, own XDG dirs, own config render) — zero OpenCode code
    changes. This satisfies the "minimal fork" rule (spec §2) more strictly than
    a fork.
-3. **No Engram.** "No mandatory infrastructure" (spec §3): context lives
-   in workspace files + native sessions. Nothing to install beyond the
-   runtime.
+3. **Memory and tasks are optional local integrations, auto-installed
+   fail-soft.** engram (persistent local memory, MCP server) and aven
+   (local-first task manager) are single local binaries — no server, no
+   database service, no account. `install.sh` downloads them into the install
+   root and verifies their checksums, but the harness MUST work without them:
+   every agent states the degradation in one line and continues. This
+   supersedes the original "No Engram" reading, which equated "no mandatory
+   infrastructure" with "no auxiliary tooling at all". The spec forbids a
+   dependency the product cannot run without; an optional, checksum-verified,
+   product-private binary is not infrastructure. Memory survives sessions
+   (engram) and delegations become tracked tasks (aven) without making the
+   product fragile.
 4. **Native-first** (spec §2 principle 1): agents, skills, commands,
    permissions, sessions, MCP are OpenCode natives; we only configure them.
 
@@ -31,7 +40,13 @@ XDG_DATA_HOME           $MARKETHARNESS_HOME/data
 XDG_STATE_HOME          $MARKETHARNESS_HOME/state
 XDG_CACHE_HOME          $MARKETHARNESS_HOME/cache
 OPENCODE_CONFIG         $MARKETHARNESS_HOME/opencode/opencode.json  (rendered)
+AVEN_DB                 $REAL_XDG_STATE_HOME/aven/db.sqlite   (caller's real state, see §7b)
+PATH                    $INSTALL_ROOT/tools/bin first          (engram + aven, see §7b)
 ```
+
+- `REAL_XDG_STATE_HOME` is `${XDG_STATE_HOME:-$HOME/.local/state}` as seen by
+  the caller, captured BEFORE the XDG redirect: aven otherwise resolves the
+  hermetic `state/` dir and tasks would land in a private, invisible DB.
 
 - Never reads or writes the user's `~/.config/opencode`, `~/.local/share/
   opencode`, credentials, sessions, plugins, or the `opencode` binary.
@@ -54,7 +69,7 @@ marketharness/
 ├── README.md
 ├── AGENTS.md                  # rules for agents running INSIDE this repo's dev
 ├── docs/SPEC.md               # this file
-├── install.sh                 # preflight → npm runtime pin → render → link CLI
+├── install.sh                 # preflight → optional tools → npm runtime pin → render → link CLI
 ├── bin/
 │   ├── marketharness           # hermetic V1 launcher (see §1)
 │   └── init-workspace         # scaffold workspace tree (§5)
@@ -284,6 +299,61 @@ status   <action_id>          → {ok, external_id, state}
   setup, and known limitations all live in `README.md` under "Hackathon
   submission" — with an honest pending list for the artifacts that do not
   exist yet.
+
+## 7b. Memory and tasks (optional local integrations)
+
+engram and aven are **optional**: single local binaries, auto-installed into
+`$INSTALL_ROOT/tools/bin/` by `install.sh`, verified with sha256, and
+skippable (`MARKETHARNESS_SKIP_ENGRAM=1`, `MARKETHARNESS_SKIP_AVEN=1`). A
+download or checksum failure warns and the install continues. The harness and
+every agent MUST work without them.
+
+| Tool | What it is | Why it is here |
+|---|---|---|
+| engram | Local persistent memory, `engram mcp` stdio MCP server + `mem_*` tools; single binary, local store | Decisions and findings survive sessions and compactions |
+| aven | Local-first task manager, SQLite; single binary, CLI | Every delegation is a tracked task, not a chat message |
+
+Wiring:
+
+- `mcp.engram` renders as
+  `{"type":"local","command":["<abs path>/engram","mcp"],"timeout":60000,"enabled":true}`
+  while the product-private binary exists; the launcher removes the whole
+  entry when it does not (same rule as `mcp.qloo`). `__ENGRAM_BIN__` is a
+  committed placeholder in `profile/opencode.json` and a leftover placeholder
+  aborts the launch.
+- The launcher prepends `$INSTALL_ROOT/tools/bin` to `PATH`, so `engram` and
+  `aven` resolve to the product-private copies; a pre-existing `engram`/`aven`
+  on the user's `PATH` is never read, moved, or shadowed in place.
+- `AVEN_DB` is pinned to the caller's REAL state home before the XDG redirect.
+  The aven DB is intentionally shared across marketharness projects: it is the
+  user's board, not a per-workspace silo.
+- `bin/init-workspace` makes the workspace a git repo (aven routes tasks by
+  project boundary), writes `.engram/config.json` with
+  `{"project_name":"<workspace-slug>"}` (without it engram's cwd detection can
+  walk up to a parent project), and registers the workspace path as an aven
+  project. Missing tools produce a printed instruction, never a failed
+  scaffold.
+
+Contracts (encoded in the agents, commands, and project `AGENTS.md`):
+
+- **marketing-lead** creates one aven task per delegation BEFORE calling the
+  task tool: `aven add "<title>" --label <research|growth|community>
+  --priority <low|medium|high>` (create the label once when aven reports
+  `unknown-label`: `aven label create <label>`). The delegation prompt carries
+  the task ref plus the Engram topic key
+  `marketharness/<workspace>/<area>`. The lead alone owns status transitions:
+  `active -> done | canceled`; a pending founder review keeps the task
+  `active` with the label `review`. After results, the lead appends one
+  `aven note <ref> --stdin` per task and `mem_save`s the consolidated decision
+  under `marketharness/<workspace>/decisions`.
+- **research / growth / community / audience-researcher**: when delegated they
+  receive a task ref and a topic key; they append their report ONLY with
+  `aven note <ref> --stdin` and NEVER change task status, then `mem_save`
+  durable findings under `marketharness/<workspace>/<area>`. Every claim
+  cites `path:line`, an aven ref, or an Engram observation ID.
+- **Fail-soft**: if engram or aven is unavailable or a call fails, the agent
+  states it in one line and continues. Memory and tracking never block
+  delivery, and refs/observation IDs are never invented.
 
 ## 8. Commands (V1 `command` key — {description, template})
 

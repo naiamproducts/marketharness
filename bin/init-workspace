@@ -8,11 +8,21 @@ Idempotent: existing files are kept (printed as `kept`) unless --force
 overwrites them (printed as `created`). Empty deliverable dirs are always
 ensured, with a .gitkeep so the tree survives git.
 
+After scaffolding it binds the workspace to the optional local tools
+(SPEC §7b), fail-soft:
+  - `git init` (aven routes tasks by project boundary; engram falls back to it)
+  - .engram/config.json {"project_name": "<workspace-slug>"}
+  - the workspace path as an aven project (never a throwaway DB: aven inherits
+    the caller's AVEN_DB / real state; this script never sets AVEN_DB)
+
 Stdlib only. Exit codes: 0 ok, 1 error.
 """
 import argparse
+import json
 import os
 import re
+import shutil
+import subprocess
 import sys
 
 TEMPLATE_ROOT = os.path.join(
@@ -85,8 +95,87 @@ def scaffold_tree(src_dir, dst_dir, subs, force, report):
             os.makedirs(dst, exist_ok=True)
             scaffold_tree(src, dst, subs, force, report)
         else:
-            rel = os.path.relpath(dst, subs["_root"])
-            report.append((rel, scaffold_file(src, dst, subs, force)))
+            report.append((os.path.relpath(dst, subs["_root"]),
+                           scaffold_file(src, dst, subs, force)))
+
+
+# --- Optional local integrations (SPEC §7b) ---------------------------------
+def run_tool(cmd, cwd=None, timeout=60):
+    """Run a tool, never raise. Returns CompletedProcess or None."""
+    try:
+        return subprocess.run(cmd, cwd=cwd, capture_output=True, text=True,
+                              timeout=timeout)
+    except (OSError, subprocess.SubprocessError):
+        return None
+
+
+def aven_default_workspace(aven, cwd):
+    """Read workspace.default from `aven config show` (no config get key)."""
+    proc = run_tool([aven, "config", "show"], cwd=cwd)
+    if not proc or proc.returncode != 0:
+        return None
+    in_workspace = False
+    for line in proc.stdout.splitlines():
+        if line.startswith("workspace:"):
+            in_workspace = True
+            continue
+        if in_workspace:
+            match = re.match(r"\s+default:\s*(\S+)", line)
+            if match:
+                return match.group(1)
+            if line and not line[0].isspace():
+                break
+    return None
+
+
+def bind_git(root):
+    if os.path.exists(os.path.join(root, ".git")):
+        return "git repo already present"
+    if not shutil.which("git"):
+        return "git NOT found — workspace is not a git repo; aven may not infer this project (install git, then: git -C %s init)" % root
+    proc = run_tool(["git", "init", "-q", root])
+    if proc and proc.returncode == 0:
+        return "git repo initialized"
+    return "git init FAILED — aven may not infer this project (run: git -C %s init)" % root
+
+
+def bind_engram(root, workspace_id, force):
+    """Pin the engram project name: without it, cwd detection can walk up."""
+    cfg_dir = os.path.join(root, ".engram")
+    cfg_path = os.path.join(cfg_dir, "config.json")
+    if os.path.exists(cfg_path) and not force:
+        return "engram project kept (.engram/config.json)"
+    os.makedirs(cfg_dir, exist_ok=True)
+    with open(cfg_path, "w", encoding="utf-8") as f:
+        json.dump({"project_name": workspace_id}, f, indent=2)
+        f.write("\n")
+    return "engram project bound: %s (.engram/config.json)" % workspace_id
+
+
+def bind_aven(root, workspace_id):
+    aven = shutil.which("aven")
+    if not aven:
+        return ("aven not found (optional) — project not registered. "
+                "Install it with the marketharness installer, then re-run: "
+                "aven project create %s --path %s" % (workspace_id, root))
+    create = [aven, "project", "create", workspace_id, "--path", root]
+    proc = run_tool(create, cwd=root)
+    # A fresh aven DB has no workspace matching the configured default; aven
+    # itself hints at the fix, so do exactly that once and retry.
+    if proc and proc.returncode != 0 and "unknown-workspace" in (proc.stderr or ""):
+        default = aven_default_workspace(aven, root)
+        if default:
+            run_tool([aven, "workspace", "create", default], cwd=root)
+            proc = run_tool(create, cwd=root)
+    if proc and proc.returncode == 0:
+        line = (proc.stdout or "").strip().splitlines()
+        detail = line[0] if line else "registered"
+        return "aven project ready: %s" % detail
+    err = ((proc.stderr or proc.stdout) if proc else "").strip().splitlines()
+    return ("aven project NOT registered — %s\n     register manually: "
+            "aven project create %s --path %s"
+            % (err[-1] if err else "aven failed", workspace_id, root))
+
 
 
 def main(argv=None):
@@ -145,6 +234,17 @@ def main(argv=None):
         else:
             kept += 1
     print(f"done: {created} created, {kept} kept — workspace at {root}")
+
+    # Optional local integrations (SPEC §7b) — fail-soft, never blocking.
+    engram_note = bind_engram(root, workspace_id, args.force)
+    git_note = bind_git(root)
+    aven_note = bind_aven(root, workspace_id)
+    print()
+    print("Integrations (optional):")
+    print(f"  git     {git_note}")
+    print(f"  engram  {engram_note}")
+    print(f"  aven    {aven_note}")
+
     print()
     print("Next steps:")
     print(f"  1. Fill in company display name: companies/{args.company}/company.yaml")
@@ -153,6 +253,8 @@ def main(argv=None):
     print(f"  3. Open the project with: marketharness "
           f"{os.path.join(root, 'companies', args.company, 'projects', args.project)}")
     print(f"  4. Run the first-run onboarding command: marketharness-init")
+    print(f"  5. Delegations become aven tasks; inspect them with: aven list")
+    print(f"     Decisions are saved to engram under marketharness/{workspace_id}/<area>.")
     return 0
 
 
